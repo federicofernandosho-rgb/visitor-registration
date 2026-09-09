@@ -11,8 +11,11 @@
 <body>
   <section class="login-shell" id="loginShell">
     <div class="login-card">
-      <h1>Inmate Profile</h1>
-      <p id="loginIntro">Sign in to continue.</p>
+      <div style="text-align: center; margin-bottom: 24px; padding-top: 10px;">
+        <h1 style="color: #10b981; font-size: 28px; font-weight: 700; margin: 0 0 4px 0; letter-spacing: 1px;">PIS</h1>
+        <h2 style="color: #3b82f6; font-size: 14px; font-weight: 700; margin: 0 0 4px 0; letter-spacing: 0.5px;">BELIZE CENTRAL PRISON</h2>
+        <h3 style="color: #10b981; font-size: 12px; font-weight: 700; margin: 0; letter-spacing: 0.5px;">VISITOR REGISTRATION</h3>
+      </div>
 
       <form id="loginForm" class="login-form">
         <label class="login-field">
@@ -44,176 +47,209 @@
 
   <main class="app-shell hidden" id="appShell">
     <header class="app-header">
-      <div>
-        <h1>Inmate Profile</h1>
-        <p>Inmate intelligence record management</p>
+      <div class="header-left"></div>
+      <div class="header-center">
+        <h1>Visitor Registration</h1>
+        <p>Belize Central Prison &mdash; Visitor Records</p>
       </div>
       <div class="header-tools">
-        <div class="session-status" id="sessionStatus">Not signed in</div>
-        <button class="secondary" type="button" id="darkModeToggle" aria-label="Toggle dark mode"
-          title="Toggle dark mode">&#127769;</button>
-        <button class="secondary" type="button" id="manageUsers">Users</button>
-        <button class="secondary" type="button" id="auditLogButton">Audit Log</button>
-        <button class="secondary" type="button" id="exportCsvButton">Export CSV</button>
-        <button class="secondary" type="button" id="logoutButton">Log Out</button>
-        <div class="record-status" id="recordStatus">Record 1 of 1</div>
+        <!-- Elements kept hidden for background JS state and compatibility -->
+        <div style="display: none !important;">
+          <div class="session-status" id="sessionStatus">Not signed in</div>
+          <button type="button" id="manageUsers">Users</button>
+          <button type="button" id="auditLogButton">Audit Log</button>
+          <button type="button" id="exportCsvButton">Export CSV</button>
+          <div class="record-status" id="recordStatus">Record 1 of 1</div>
+        </div>
       </div>
     </header>
 
-    <section class="workspace" aria-label="Inmate profile form">
+    <section class="workspace" aria-label="Visitor registration form">
       <form id="inmateForm" autocomplete="off">
-        <div class="filter-bar" id="filterBar">
-          <label class="filter-item">
-            <span>Search by ID</span>
-            <div class="search-bar">
-              <input id="searchInput" name="searchInput" type="text" inputmode="numeric" maxlength="7"
-                placeholder="Search by ID">
-              <button id="searchButton" type="button">Search</button>
-            </div>
-          </label>
-          <label class="filter-item">
-            <span>Status</span>
-            <select id="filterStatus">
-              <option value="all">All</option>
-              <option value="in">In Prison</option>
-              <option value="out">Out of Prison</option>
-            </select>
-          </label>
-          <label class="filter-item">
-            <span>Affiliation</span>
-            <input id="filterAffiliation" type="text" placeholder="Filter affiliation...">
-          </label>
 
-          <label class="filter-item">
-            <span>Date From</span>
-            <input id="filterDateFrom" type="date">
-          </label>
-          <label class="filter-item">
-            <span>Date To</span>
-            <input id="filterDateTo" type="date">
-          </label>
-          <button type="button" id="applyFilter">Apply</button>
-          <button type="button" class="secondary" id="clearFilter">Clear</button>
+        <!-- Search / Filter Bar -->
+        <div class="filter-bar" id="filterBar">
+          <div class="search-filter-wrapper">
+            <label class="filter-item">
+              <span>Search by Name or ID</span>
+              <div class="search-bar">
+                <input id="searchInput" name="searchInput" type="text" placeholder="First name, last name, or full name">
+                <button id="searchButton" type="button">Search</button>
+              </div>
+            </label>
+
+            <!-- Scrollable search results dropdown for multiple matches -->
+            <div class="search-results-dropdown hidden" id="searchResultsDropdown" role="region" aria-label="Search results">
+              <div class="search-results-header">
+                <span id="searchResultsCount">Matching Records</span>
+                <button type="button" class="search-results-close" id="searchResultsClose" title="Close results">&times;</button>
+              </div>
+              <div class="search-results-scroll" id="searchResultsList" role="listbox"></div>
+            </div>
+          </div>
+
+          <!-- Admin dropdown menu -->
+          <div class="admin-menu-wrap hidden" id="adminMenuWrap">
+            <button type="button" class="admin-menu-btn" id="adminMenuBtn" aria-haspopup="true" aria-expanded="false">
+              &#9881; Admin
+              <span class="admin-menu-caret">&#9660;</span>
+            </button>
+            <ul class="admin-menu-dropdown" id="adminMenuDropdown" role="menu">
+              <li role="menuitem"><button type="button" id="adminMenuUsers">&#128100; Users</button></li>
+              <li role="menuitem"><button type="button" id="adminMenuAudit">&#128196; Audit Log</button></li>
+              <li role="menuitem"><button type="button" id="adminMenuExport">&#128190; Export CSV</button></li>
+              <li role="menuitem"><button type="button" id="adminMenuEdit">&#9998; Edit Visitor Record</button></li>
+            </ul>
+          </div>
+
+          <!-- Toggle dark mode button beside admin dropdown -->
+          <button class="secondary filter-bar-btn" type="button" id="darkModeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">&#127769;</button>
+
+          <!-- Log out button beside admin dropdown -->
+          <button class="secondary filter-bar-btn logout-btn" type="button" id="logoutButton">Log Out</button>
+
+          <!-- keep hidden filter inputs for JS compatibility -->
+          <input id="filterDateFrom" type="hidden">
+          <input id="filterDateTo" type="hidden">
+          <select id="filterStatus" class="hidden"><option value="all">All</option><option value="in">In Prison</option><option value="out">Out of Prison</option></select>
+          <input id="filterAffiliation" type="text" class="hidden">
+          <button type="button" id="applyFilter" class="hidden">Search</button>
+          <button type="button" class="secondary" id="clearFilter" style="display:none">Clear</button>
         </div>
 
-        <div class="id-status-row">
-          <div class="search-and-id">
-            <label class="field inmate-id">
-              <span>Inmate ID</span>
-              <input id="inmateId" name="inmateId" type="text" inputmode="numeric" maxlength="7" required>
-            </label>
-          </div>
-          <div class="status-block">
-            <fieldset class="status-options incarceration-status-field">
-              <legend>Incarceration Status</legend>
-              <label>
-                <input id="incarcerationIn" name="incarcerationStatus" type="radio" value="in">
-                <span>In prison</span>
-              </label>
-              <label>
-                <input id="incarcerationOut" name="incarcerationStatus" type="radio" value="out">
-                <span>Out of prison</span>
-              </label>
-            </fieldset>
-            <label class="field status-date-field hidden">
-              <span>Status Date</span>
-              <input id="statusDate" name="statusDate" type="date">
-            </label>
-          </div>
-          <aside class="photo-strip" aria-label="Main mugshot preview">
-            <div class="photo-frame">
-              <img id="mainPreview" alt="Inmate mugshot preview">
-              <span id="mainPreviewText">No photo</span>
-            </div>
+        <!-- Visitor Registration Card -->
+        <div class="vr-card">
 
-            <!-- Hover Views Popover -->
-            <div class="photo-views-popover">
-              <div class="popover-title">Inmate Profile Views</div>
-              <div class="popover-grid">
-                <div class="popover-view-card">
-                  <img id="hoverFrontPreview" src="" alt="Front Face">
-                  <span class="hover-view-label">Front View</span>
+          <div class="vr-section-title">Visitor Information</div>
+
+          <!-- Visitor ID (hidden but needed by JS) -->
+          <label class="field inmate-id" style="display:none">
+            <span>Record ID</span>
+            <input id="inmateId" name="inmateId" type="text" inputmode="numeric" maxlength="7">
+          </label>
+
+          <!-- hidden status inputs kept for JS compatibility -->
+          <input id="incarcerationIn" name="incarcerationStatus" type="radio" value="in" class="hidden">
+          <input id="incarcerationOut" name="incarcerationStatus" type="radio" value="out" class="hidden">
+          <input id="statusDate" name="statusDate" type="hidden">
+          <input id="alias" name="alias" type="hidden">
+          <input id="affiliation" name="affiliation" type="hidden">
+          <textarea id="comment" name="comment" class="hidden"></textarea>
+
+          <div class="vr-form-grid">
+            <!-- LEFT: form fields -->
+            <div class="vr-fields">
+              <div class="vr-row">
+                <label class="vr-field">
+                  <span>First Name <span class="req">*</span></span>
+                  <input id="firstName" name="firstName" type="text" placeholder="Enter first name" required>
+                </label>
+                <label class="vr-field">
+                  <span>Middle Name</span>
+                  <input id="middleName" name="middleName" type="text" placeholder="Enter middle name">
+                </label>
+                <label class="vr-field">
+                  <span>Last Name <span class="req">*</span></span>
+                  <input id="lastName" name="lastName" type="text" placeholder="Enter last name" required>
+                </label>
+              </div>
+
+              <div class="vr-row">
+                <label class="vr-field" style="max-width:16ch; flex: 0 0 16ch;">
+                  <span>Date of Birth</span>
+                  <input id="dob" name="dob" type="text" placeholder="Select date...">
+                </label>
+                <label class="vr-field vr-field--small">
+                  <span>Age</span>
+                  <input id="age" name="age" type="number" min="0" max="130" placeholder="Auto" readonly>
+                </label>
+                <label class="vr-field" style="max-width:16ch; flex: 0 0 16ch;">
+                  <span>Registration Date</span>
+                  <input id="registrationDate" name="registrationDate" type="text" readonly placeholder="Auto-captured" style="background: transparent; cursor: default;">
+                </label>
+                <div class="vr-field visitor-id-field">
+                  <span>Visitor ID</span>
+                  <output id="visitorIdDisplay" class="visitor-id-badge" aria-label="Assigned Visitor ID">&mdash;</output>
                 </div>
-                <div class="popover-view-card">
-                  <img id="hoverRightPreview" src="" alt="Right Profile">
-                  <span class="hover-view-label">Right Profile</span>
-                </div>
-                <div class="popover-view-card">
-                  <img id="hoverLeftPreview" src="" alt="Left Profile">
-                  <span class="hover-view-label">Left Profile</span>
-                </div>
+              </div>
+
+
+              <div class="vr-row">
+                <label class="vr-field vr-field--full">
+                  <span>Address</span>
+                  <input id="address" name="address" type="text" placeholder="Street, city, district">
+                </label>
+              </div>
+
+              <div class="vr-row">
+                <label class="vr-field">
+                  <span>Phone Number</span>
+                  <input id="visitorPhone" name="visitorPhone" type="tel" placeholder="e.g. 501-600-0000">
+                </label>
+                <label class="vr-field">
+                  <span>National ID / Passport</span>
+                  <input id="visitorId" name="visitorId" type="text" placeholder="ID or passport number">
+                </label>
+              </div>
+
+
+              <div class="vr-row">
+                <label class="vr-field vr-field--full">
+                  <span>Notes / Remarks</span>
+                  <textarea id="visitNotes" name="visitNotes" rows="3" placeholder="Any additional notes about this visit..."></textarea>
+                </label>
               </div>
             </div>
 
-            <button class="secondary" type="button" id="openIntelModal">Gang &amp; Photos</button>
-          </aside>
+            <!-- RIGHT: photo upload -->
+            <div class="vr-photos">
+              <div class="vr-section-title">Visitor Photo</div>
+
+              <!-- Main photo (reuses existing JS hooks) -->
+              <!-- Main photo (stretched to fill column) -->
+              <div class="vr-main-photo">
+                <div class="photo-frame vr-photo-frame" id="vrPhotoFrame">
+                  <img id="mainPreview" alt="Visitor photo preview">
+                  <span id="mainPreviewText">No photo uploaded</span>
+                </div>
+                <label class="upload-button vr-upload-btn">
+                  &#128247; Upload Visitor Photo
+                  <input id="frontFaceUpload" type="file" accept="image/*" style="display:none">
+                </label>
+              </div>
+
+              <!-- Elements kept in DOM (hidden) for background JS compatibility -->
+              <div style="display:none !important">
+                <input id="rightFaceUpload" type="file" accept="image/*">
+                <input id="leftFaceUpload" type="file" accept="image/*">
+                <input id="tattooUpload" type="file" accept="image/*" multiple>
+                <img id="rightFacePreview" alt="">
+                <img id="hoverFrontPreview" alt="">
+                <img id="hoverRightPreview" alt="">
+                <img id="hoverLeftPreview" alt="">
+                <button type="button" id="openIntelModal"></button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="form-grid">
-          <label class="field name-field">
-            <span>First Name</span>
-            <input id="firstName" name="firstName" type="text" required>
-          </label>
-
-          <label class="field name-field">
-            <span>Last Name</span>
-            <input id="lastName" name="lastName" type="text" required>
-          </label>
-
-          <label class="field name-field">
-            <span>Middle Name</span>
-            <input id="middleName" name="middleName" type="text">
-          </label>
-
-          <label class="field alias-field">
-            <span>Alias "AKA"</span>
-            <input id="alias" name="alias" type="text">
-          </label>
-
-          <label class="field dob-field">
-            <span>DOB</span>
-            <input id="dob" name="dob" type="text" placeholder="Select Date...">
-          </label>
-
-          <label class="field age-field">
-            <span>Age</span>
-            <input id="age" name="age" type="number" min="0" max="130" readonly>
-          </label>
-
-          <label class="field address-field">
-            <span>Address</span>
-            <input id="address" name="address" type="text">
-          </label>
-
-          <label class="field affiliation-field">
-            <span>Affiliation</span>
-            <input id="affiliation" name="affiliation" type="text">
-          </label>
-
-          <label class="field comment-field">
-            <span>Comment</span>
-            <textarea id="comment" name="comment" rows="5"></textarea>
-          </label>
-
-        </div>
       </form>
     </section>
 
     <nav class="actions" aria-label="Record actions">
       <div class="actions-left">
-        <button type="button" id="newRecord" data-edit-only>New Inmate</button>
-        <button type="button" id="saveRecord" data-edit-only>Save Record</button>
-        <button type="button" id="cancelRecord" data-edit-only>Cancel</button>
-        <button type="button" id="updateRecord" data-edit-only>Update Record</button>
-        <button type="button" id="deleteRecord" class="danger-button" data-admin-only>Delete Record</button>
+        <button type="button" id="newRecord" data-edit-only>New Visitor</button>
+        <button type="button" id="saveRecord" class="hidden" data-edit-only>Save Record</button>
+        <button type="button" id="editRecord" data-admin-only>Edit Visitor Record</button>
+        <button type="button" id="updateRecord" class="hidden" data-admin-only>Update Record</button>
+        <button type="button" id="deleteRecord" class="danger-button hidden" data-admin-only>Delete Record</button>
       </div>
-      <div class="actions-center">
+      <div class="actions-center" style="display: none !important;">
         <button type="button" id="previousRecord">Previous</button>
         <button type="button" id="nextRecord">Next</button>
       </div>
-      <button type="button" id="generatePdf">Generate PDF</button>
-      <button type="button" id="viewHistory">History</button>
-      </div>
+      <button type="button" id="generatePdf" class="hidden" data-admin-only>Generate PDF</button>
+      <button type="button" id="viewHistory" style="display:none">History</button>
     </nav>
 
     <p class="message global-notice" id="message" role="status" aria-live="polite"></p>
@@ -372,6 +408,35 @@
       </div>
     </div>
   </dialog>
+
+  <!-- Save Record Confirmation Dialog -->
+  <dialog id="saveConfirmDialog" class="confirm-dialog">
+    <div class="confirm-modal confirm-modal--save">
+      <div class="confirm-icon confirm-icon--save">&#10003;</div>
+      <h2 class="confirm-title">Save New Visitor?</h2>
+      <p class="confirm-message" id="saveConfirmMessage">You are about to save this new visitor record.</p>
+      <p class="confirm-info">Please verify the details are correct before saving.</p>
+      <div class="confirm-actions">
+        <button type="button" class="secondary" id="saveCancelBtn">Cancel</button>
+        <button type="button" class="confirm-save-btn" id="saveConfirmBtn">&#10003;&nbsp; Yes, Save Record</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Update Record Confirmation Dialog -->
+  <dialog id="updateConfirmDialog" class="confirm-dialog">
+    <div class="confirm-modal confirm-modal--update">
+      <div class="confirm-icon confirm-icon--update">&#9998;</div>
+      <h2 class="confirm-title">Update Visitor Record?</h2>
+      <p class="confirm-message" id="updateConfirmMessage">You are about to update this visitor record.</p>
+      <p class="confirm-info">Please confirm the changes are correct before updating.</p>
+      <div class="confirm-actions">
+        <button type="button" class="secondary" id="updateCancelBtn">Cancel</button>
+        <button type="button" class="confirm-update-btn" id="updateConfirmBtn">&#9998;&nbsp; Yes, Update Record</button>
+      </div>
+    </div>
+  </dialog>
+
 
   <section id="reportTemplate" class="report-template" aria-hidden="true">
 
@@ -570,6 +635,15 @@
       </section>
     </div>
   </dialog>
+
+  <!-- Photo Lightbox Modal -->
+  <div id="photoLightbox" class="photo-lightbox hidden" role="dialog" aria-modal="true" aria-label="Visitor photo enlarged">
+    <div class="photo-lightbox-backdrop" id="photoLightboxClose"></div>
+    <div class="photo-lightbox-content">
+      <button class="photo-lightbox-x" id="photoLightboxX" aria-label="Close">&times;</button>
+      <img id="photoLightboxImg" alt="Visitor photo enlarged">
+    </div>
+  </div>
 
   <script src="app.js?v=6"></script>
 </body>

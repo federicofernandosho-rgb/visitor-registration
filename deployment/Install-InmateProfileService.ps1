@@ -1,7 +1,7 @@
 param(
   [string]$ServiceName = "InmateProfile",
   [string]$AppDirectory = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-  [int]$Port = 3000
+  [int]$Port = 3001
 )
 
 $ErrorActionPreference = "Stop"

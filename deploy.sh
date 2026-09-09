@@ -5,12 +5,12 @@ set -euo pipefail
 # Usage:
 #   ./deploy.sh <repo-url> [branch]
 #   OR if repository already exists on the server:
-#   APP_DIR=/opt/inmate-profile PORT=3000 ./deploy.sh
+#   APP_DIR=/opt/inmate-profile PORT=3001 ./deploy.sh
 
 REPO_URL=${1:-}
 BRANCH=${2:-main}
 APP_DIR=${APP_DIR:-/opt/inmate-profile}
-PORT=${PORT:-3000}
+PORT=${PORT:-3001}
 SERVICE_NAME=${SERVICE_NAME:-inmate-profile}
 
 echo "Deploy starting: APP_DIR=$APP_DIR BRANCH=$BRANCH PORT=$PORT"

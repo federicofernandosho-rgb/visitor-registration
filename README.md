@@ -12,7 +12,7 @@ npm start
 Then open:
 
 ```text
-http://localhost:3000
+http://localhost:3001
 ```
 
 The first time the app runs, it asks you to create the first Super Admin user. Users can have one of these roles:
@@ -100,7 +100,7 @@ npm start
 Optional environment variables:
 
 ```bash
-PORT=3000
+PORT=3001
 HOST=0.0.0.0
 ```
 
@@ -155,7 +155,7 @@ Using pm2 (recommended):
 
 ```bash
 npm install -g pm2
-pm2 start server.js --name inmate-profile --env production -- PORT=3000
+pm2 start server.js --name inmate-profile --env production -- PORT=3001
 pm2 save
 pm2 startup
 ```
@@ -171,7 +171,7 @@ After=network.target
 WorkingDirectory=/opt/inmate-profile
 ExecStart=/usr/bin/node server.js
 Restart=always
-Environment=PORT=3000
+Environment=PORT=3001
 Environment=NODE_ENV=production
 User=www-data
 

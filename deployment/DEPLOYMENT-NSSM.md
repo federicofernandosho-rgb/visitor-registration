@@ -31,7 +31,7 @@ InmateProfileServer\
   styles.css
   server.js
   package.json
-  .env                   ← pre-configured for pims / port 3000 / MySQL
+  .env                   ← pre-configured for pims / port 3001 / MySQL
   node_modules\          ← pre-bundled (no npm install needed)
   data\                  ← created automatically on first run
   logs\                  ← created automatically on first run
@@ -50,7 +50,7 @@ InmateProfileServer\
 The `.env` file is already configured:
 
 ```ini
-PORT=3000
+PORT=3001
 HOST=0.0.0.0
 
 DB_HOST=pims
@@ -116,7 +116,7 @@ nssm start InmateProfile
 Open a browser and navigate to:
 
 ```
-http://pims:3000
+http://pims:3001
 ```
 
 ## Service Management

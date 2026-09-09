@@ -6,7 +6,7 @@ const crypto = require("crypto");
 
 loadEnvFile();
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3001);
 const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
@@ -26,7 +26,8 @@ const MIME_TYPES = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
-  ".webp": "image/webp"
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml"
 };
 
 start().catch(error => {
@@ -127,7 +128,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/export/csv") {
     const records = await getRecords();
-    const headers = ["inmateId","firstName","middleName","lastName","alias","dob","age","address","affiliation","gangAffiliation","comment","inPrison","admissionDate","dischargeDate"];
+    const headers = ["visitorNumber","registrationDate","inmateId","firstName","middleName","lastName","alias","dob","age","address","affiliation","gangAffiliation","comment","inPrison","admissionDate","dischargeDate"];
     const csvRows = [headers.join(",")];
     for (const r of records) {
       csvRows.push(headers.map(h => csvCell(r[h])).join(","));
@@ -496,7 +497,8 @@ async function getRecords() {
 
   const [inmateRows] = await dbPool.query(`
     SELECT
-      id, inmate_id AS inmateId, first_name AS firstName, middle_name AS middleName,
+      id, inmate_id AS inmateId, visitor_number AS visitorNumber, registration_date AS registrationDate,
+      first_name AS firstName, middle_name AS middleName,
       last_name AS lastName, alias, dob, age, address, comment, affiliation,
       gang_affiliation AS gangAffiliation, person_name AS personName, in_prison AS inPrison,
       admission_date AS admissionDate, discharge_date AS dischargeDate, status_history AS statusHistory
@@ -527,6 +529,8 @@ async function getRecords() {
 
     return {
       inmateId: row.inmateId || "",
+      visitorNumber: row.visitorNumber || "",
+      registrationDate: mysqlDate(row.registrationDate) || "",
       firstName: row.firstName || "",
       middleName: row.middleName || "",
       lastName: row.lastName || "",
@@ -561,11 +565,13 @@ async function saveRecords(records) {
     for (const record of records) {
       const [result] = await connection.execute(`
         INSERT INTO inmates (
-          inmate_id, first_name, middle_name, last_name, alias, dob, age, address,
+          inmate_id, visitor_number, registration_date, first_name, middle_name, last_name, alias, dob, age, address,
           comment, affiliation, gang_affiliation, person_name, in_prison, admission_date, discharge_date, status_history
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         record.inmateId || "",
+        record.visitorNumber || "",
+        record.registrationDate || null,
         record.firstName || "",
         record.middleName || "",
         record.lastName || "",

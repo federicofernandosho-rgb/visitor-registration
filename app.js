@@ -3,6 +3,8 @@ const LEGACY_RECORDS_KEY = "intel-inmate-profileing-records";
 
 const emptyRecord = () => ({
   inmateId: "",
+  visitorNumber: "",
+  registrationDate: "",
   firstName: "",
   middleName: "",
   lastName: "",
@@ -26,9 +28,23 @@ const emptyRecord = () => ({
   }
 });
 
+function generateVisitorNumber() {
+  // Build a sequential number based on highest existing visitorNumber
+  let maxNum = 0;
+  records.forEach(r => {
+    if (r.visitorNumber) {
+      const n = parseInt(r.visitorNumber.replace(/^VIS-0*/i, ""), 10);
+      if (!isNaN(n) && n > maxNum) maxNum = n;
+    }
+  });
+  const next = maxNum + 1;
+  return "VIS-" + String(next).padStart(5, "0");
+}
+
 let records = [];
 let currentIndex = 0;
 let isNewRecord = false;
+let isEditingRecord = false;
 let currentUser = null;
 let authToken = sessionStorage.getItem(SESSION_KEY) || "";
 
@@ -110,7 +126,8 @@ document.querySelector("#previousRecord").addEventListener("click", showPrevious
 document.querySelector("#nextRecord").addEventListener("click", showNextRecord);
 document.querySelector("#newRecord").addEventListener("click", createNewRecord);
 document.querySelector("#saveRecord").addEventListener("click", saveNewRecord);
-document.querySelector("#cancelRecord").addEventListener("click", cancelNewRecord);
+const cancelBtn = document.querySelector("#cancelRecord");
+if (cancelBtn) cancelBtn.addEventListener("click", cancelNewRecord);
 document.querySelector("#updateRecord").addEventListener("click", updateCurrentRecord);
 document.querySelector("#deleteRecord").addEventListener("click", deleteRecord);
 document.querySelector("#generatePdf").addEventListener("click", generatePdfReport);
@@ -144,6 +161,93 @@ document.querySelectorAll(".remove-image").forEach(button => {
   button.addEventListener("click", () => removeFaceImage(button.dataset.imageKey));
 });
 document.querySelector("#frontFaceUpload").addEventListener("change", event => setImage(event, "frontFace"));
+
+// Photo lightbox
+(function() {
+  const lightbox    = document.querySelector("#photoLightbox");
+  const lbImg       = document.querySelector("#photoLightboxImg");
+  const lbClose     = document.querySelector("#photoLightboxClose");
+  const lbX         = document.querySelector("#photoLightboxX");
+  const photoFrame  = document.querySelector("#vrPhotoFrame");
+
+  photoFrame.addEventListener("click", () => {
+    const src = mainPreview.src;
+    if (!src || src === window.location.href) return;
+    lbImg.src = src;
+    lightbox.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  });
+
+  function closeLightbox() {
+    lightbox.classList.add("hidden");
+    lbImg.src = "";
+    document.body.style.overflow = "";
+  }
+  lbClose.addEventListener("click", closeLightbox);
+  lbX.addEventListener("click", closeLightbox);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
+})();
+
+// Admin dropdown menu
+(function() {
+  const wrap     = document.querySelector("#adminMenuWrap");
+  const btn      = document.querySelector("#adminMenuBtn");
+  const dropdown = document.querySelector("#adminMenuDropdown");
+
+  function openMenu() {
+    dropdown.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+  }
+  function closeMenu() {
+    dropdown.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.classList.contains("open") ? closeMenu() : openMenu();
+  });
+
+  // Wire each item to the original hidden button / function
+  document.querySelector("#adminMenuUsers").addEventListener("click",  () => { closeMenu(); document.querySelector("#manageUsers").click(); });
+  document.querySelector("#adminMenuAudit").addEventListener("click",  () => { closeMenu(); document.querySelector("#auditLogButton").click(); });
+  document.querySelector("#adminMenuExport").addEventListener("click", () => { closeMenu(); document.querySelector("#exportCsvButton").click(); });
+  const editMenuItem = document.querySelector("#adminMenuEdit");
+  if (editMenuItem) {
+    editMenuItem.addEventListener("click", () => { closeMenu(); startEditingRecord(); });
+  }
+
+  // Close on outside click
+  document.addEventListener("click", () => closeMenu());
+})();
+
+// Edit Visitor Record handler for admins
+function startEditingRecord() {
+  if (!canManageUsers()) {
+    showMessage("Only administrators can edit visitor records.", "error");
+    return;
+  }
+  isEditingRecord = true;
+  isNewRecord = false;
+  renderCurrentRecord();
+
+  Object.values(fields).forEach(field => {
+    field.disabled = false;
+  });
+  fields.age.disabled = true;
+  document.querySelectorAll('input[type="file"]').forEach(input => {
+    input.disabled = false;
+  });
+
+  fields.firstName.focus();
+  showMessage("Edit mode enabled: You can modify this visitor record and click Update Record to save changes.", "info");
+}
+
+const editRecordBtn = document.querySelector("#editRecord");
+if (editRecordBtn) {
+  editRecordBtn.addEventListener("click", startEditingRecord);
+}
+
 fields.incarcerationIn.addEventListener("click", handleIncarcerationClick);
 fields.incarcerationOut.addEventListener("click", handleIncarcerationClick);
 
@@ -365,6 +469,23 @@ searchInput.addEventListener("keydown", event => {
     handleSearch();
   }
 });
+
+// Close search dropdown on click outside, escape, or close button
+document.addEventListener("click", event => {
+  if (!event.target.closest(".search-filter-wrapper")) {
+    hideSearchResults();
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    hideSearchResults();
+  }
+});
+const searchResultsCloseBtn = document.querySelector("#searchResultsClose");
+if (searchResultsCloseBtn) {
+  searchResultsCloseBtn.addEventListener("click", hideSearchResults);
+}
+
 fields.dob.addEventListener("change", setAgeFromDob);
 fields.dob.addEventListener("input", setAgeFromDob);
 
@@ -472,7 +593,6 @@ async function initializeAuth() {
       showLogin();
       return;
     }
-    loginMessage.textContent = `Backend unavailable: ${error.message}`;
     loginShell.classList.remove("hidden");
     appShell.classList.add("hidden");
   }
@@ -501,7 +621,13 @@ async function showApp() {
   sessionStatus.textContent = `${currentUser.username} - ${roleLabel(currentUser.role)}`;
   manageUsersButton.classList.toggle("hidden", !canManageUsers());
   document.querySelector("#deleteRecord").classList.toggle("hidden", !canManageUsers());
+  document.querySelector("#generatePdf").classList.toggle("hidden", !canManageUsers());
+  const editBtn = document.querySelector("#editRecord");
+  if (editBtn) editBtn.classList.toggle("hidden", !canManageUsers());
   document.querySelector("#auditLogButton").classList.toggle("hidden", !canManageUsers());
+  document.querySelector("#exportCsvButton").classList.toggle("hidden", !canManageUsers());
+  // Show admin dropdown only for admins
+  document.querySelector("#adminMenuWrap").classList.toggle("hidden", !canManageUsers());
   applyAccessMode();
   await loadRecordsFromBackend();
   await migrateLegacyRecordsIfNeeded();
@@ -745,6 +871,10 @@ function applyAccessMode() {
     element.disabled = readOnly;
   });
 
+  document.querySelectorAll("[data-admin-only]").forEach(element => {
+    element.classList.toggle("hidden", !canManageUsers());
+  });
+
   document.querySelectorAll('input[type="file"]').forEach(input => {
     input.disabled = readOnly;
   });
@@ -761,6 +891,9 @@ function getFormRecord() {
   return {
     ...current,
     inmateId: fields.inmateId.value.trim(),
+    // visitorNumber and registrationDate are IMMUTABLE — always preserved from current record
+    visitorNumber: current.visitorNumber || "",
+    registrationDate: current.registrationDate || "",
     firstName: fields.firstName.value.trim(),
     middleName: fields.middleName.value.trim(),
     lastName: fields.lastName.value.trim(),
@@ -792,7 +925,7 @@ function renderCurrentRecord() {
         field.type = "text";
         field.value = formatMediumDate(isoValue);
       } else {
-        field.type = "date";
+        field.type = "hidden";
         field.value = "";
       }
     } else if (key === "dob") {
@@ -815,6 +948,31 @@ function renderCurrentRecord() {
 
   updateStatusDateVisibility();
   fields.age.value = calculateAge(record.dob);
+
+  const regDateElem = document.querySelector("#registrationDate");
+  const visIdDisplay = document.querySelector("#visitorIdDisplay");
+
+  if (visIdDisplay) {
+    visIdDisplay.textContent = record.visitorNumber || "—";
+  }
+
+  if (regDateElem) {
+    if (isNewRecord) {
+      regDateElem.value = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } else if (record.registrationDate) {
+      // Use the stored registration date
+      const d = new Date(record.registrationDate + 'T00:00:00');
+      regDateElem.value = isNaN(d.getTime()) ? record.registrationDate :
+        d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } else {
+      const createdDate = record.admissionDate ? new Date(record.admissionDate) : new Date();
+      if (!isNaN(createdDate.getTime())) {
+        regDateElem.value = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      } else {
+        regDateElem.value = record.admissionDate || "";
+      }
+    }
+  }
 
   const mugshot = getMainMugshot(record);
   mainPreview.src = mugshot || "";
@@ -841,6 +999,7 @@ function renderCurrentRecord() {
   renderMainHistoryTimeline(record.statusHistory || []);
   updateStatus();
 
+  const editButton = document.querySelector("#editRecord");
   const updateButton = document.querySelector("#updateRecord");
   const saveButton = document.querySelector("#saveRecord");
   const nextButton = document.querySelector("#nextRecord");
@@ -851,31 +1010,45 @@ function renderCurrentRecord() {
   const generatePdfButton = document.querySelector("#generatePdf");
   const deleteButton = document.querySelector("#deleteRecord");
   const filterBar = document.querySelector("#filterBar");
-  const historyButton = document.querySelector("#viewHistory");
 
   if (isNewRecord) {
-    updateButton.classList.add("hidden");
+    // When selecting new visitor: ONLY show save record
     saveButton.classList.remove("hidden");
+    newButton.classList.add("hidden");
+    if (editButton) editButton.classList.add("hidden");
+    updateButton.classList.add("hidden");
+    deleteButton.classList.add("hidden");
+    generatePdfButton.classList.add("hidden");
+    if (cancelButton) cancelButton.classList.add("hidden");
     nextButton.classList.add("hidden");
     prevButton.classList.add("hidden");
-    newButton.classList.add("hidden");
-    cancelButton.classList.remove("hidden");
     intelButton.classList.add("hidden");
-    generatePdfButton.classList.add("hidden");
-    deleteButton.classList.add("hidden");
-    if (historyButton) historyButton.classList.add("hidden");
     if (filterBar) filterBar.classList.add("hidden");
-  } else {
+  } else if (isEditingRecord) {
+    // When editing visitor in admin: ONLY show update record
     updateButton.classList.remove("hidden");
     saveButton.classList.add("hidden");
-    nextButton.classList.remove("hidden");
-    prevButton.classList.remove("hidden");
+    newButton.classList.add("hidden");
+    if (editButton) editButton.classList.add("hidden");
+    deleteButton.classList.add("hidden");
+    generatePdfButton.classList.add("hidden");
+    if (cancelButton) cancelButton.classList.add("hidden");
+    nextButton.classList.add("hidden");
+    prevButton.classList.add("hidden");
+    intelButton.classList.add("hidden");
+    if (filterBar) filterBar.classList.remove("hidden");
+  } else {
+    // Normal viewing state
+    saveButton.classList.add("hidden");
+    updateButton.classList.add("hidden");
     newButton.classList.remove("hidden");
-    cancelButton.classList.add("hidden");
-    intelButton.classList.remove("hidden");
-    generatePdfButton.classList.remove("hidden");
+    if (editButton) editButton.classList.toggle("hidden", !canManageUsers());
     deleteButton.classList.toggle("hidden", !canManageUsers());
-    if (historyButton) historyButton.classList.remove("hidden");
+    generatePdfButton.classList.toggle("hidden", !canManageUsers());
+    if (cancelButton) cancelButton.classList.add("hidden");
+    nextButton.classList.add("hidden");
+    prevButton.classList.add("hidden");
+    intelButton.classList.remove("hidden");
     if (filterBar) filterBar.classList.remove("hidden");
   }
 }
@@ -1046,28 +1219,132 @@ function updateStatus() {
 }
 
 function handleSearch() {
-  const query = searchInput.value.trim();
+  const query = searchInput.value.trim().toLowerCase();
   if (!query) {
-    showMessage("Please enter an inmate ID to search.");
+    showMessage("Please enter a name or ID to search.");
+    hideSearchResults();
     return;
   }
 
-  const index = records.findIndex(r => r.inmateId === query);
-  if (index !== -1) {
-    currentIndex = index;
+  // Find all matching records
+  const matches = records.map((r, index) => ({ record: r, index })).filter(({ record: r }) => {
+    const firstName = (r.firstName || "").trim().toLowerCase();
+    const middleName = (r.middleName || "").trim().toLowerCase();
+    const lastName = (r.lastName || "").trim().toLowerCase();
+    const fullName = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, " ").trim();
+    const firstLast = `${firstName} ${lastName}`.trim();
+    const id = (r.inmateId || "").trim().toLowerCase();
+    const affiliation = (r.affiliation || "").trim().toLowerCase();
+
+    return (
+      id === query ||
+      firstName === query ||
+      lastName === query ||
+      fullName === query ||
+      firstLast === query ||
+      fullName.includes(query) ||
+      id.includes(query) ||
+      affiliation.includes(query)
+    );
+  });
+
+  if (matches.length === 0) {
+    hideSearchResults();
+    showMessage(`No visitor record matches "${searchInput.value.trim()}".`);
+  } else if (matches.length === 1) {
+    // Exactly one record: lead directly to the exact record
+    hideSearchResults();
+    currentIndex = matches[0].index;
     isNewRecord = false;
+    isEditingRecord = false;
     renderCurrentRecord();
-    showMessage(`Record for Inmate ID ${query} successfully located.`);
+    const name = `${matches[0].record.firstName || ""} ${matches[0].record.lastName || ""}`.trim();
+    showMessage(`Showing record for "${name}".`);
   } else {
-    showMessage(`No inmate profile tracking matches ID: "${query}" in standard indexing databases.`);
+    // More than one record: display scrollable list so user can choose
+    showSearchResults(matches, searchInput.value.trim());
+    showMessage(`Found ${matches.length} matching records. Please scroll down to select one.`);
   }
 }
 
+function showSearchResults(matches, queryStr) {
+  const dropdown = document.querySelector("#searchResultsDropdown");
+  const list = document.querySelector("#searchResultsList");
+  const countSpan = document.querySelector("#searchResultsCount");
+  if (!dropdown || !list) return;
+
+  countSpan.textContent = `${matches.length} records matching "${queryStr}":`;
+  list.innerHTML = "";
+
+  matches.forEach(({ record: r, index }) => {
+    const item = document.createElement("div");
+    item.className = "search-result-item";
+    item.setAttribute("role", "option");
+    item.tabIndex = 0;
+
+    const fullName = `${r.firstName || ""} ${r.middleName || ""} ${r.lastName || ""}`.replace(/\s+/g, " ").trim() || "Unnamed Record";
+    const dobText = r.dob ? `DOB: ${r.dob}` : "";
+    const ageText = r.age ? `Age: ${r.age}` : "";
+    const idText = r.inmateId ? `ID: ${r.inmateId}` : "";
+    const regDateText = r.statusDate ? `Reg: ${r.statusDate}` : "";
+    const addressText = r.address ? r.address : "";
+
+    const metaParts = [dobText, ageText, idText, regDateText].filter(Boolean).join(" • ");
+
+    const hasPhoto = Boolean(r.frontFace);
+    const photoHtml = hasPhoto
+      ? `<img class="search-result-thumb" src="${r.frontFace}" alt="${escapeHtml(fullName)}">`
+      : `<div class="search-result-thumb-placeholder">&#128100;</div>`;
+
+    item.innerHTML = `
+      ${photoHtml}
+      <div class="search-result-info">
+        <div class="search-result-name">${escapeHtml(fullName)}</div>
+        ${metaParts ? `<div class="search-result-meta">${escapeHtml(metaParts)}</div>` : ""}
+        ${addressText ? `<div class="search-result-sub">${escapeHtml(addressText)}</div>` : ""}
+      </div>
+      <div class="search-result-arrow">&#10132;</div>
+    `;
+
+    const selectRecord = () => {
+      currentIndex = index;
+      isNewRecord = false;
+      isEditingRecord = false;
+      renderCurrentRecord();
+      hideSearchResults();
+      showMessage(`Loaded record for "${fullName}".`);
+    };
+
+    item.addEventListener("click", selectRecord);
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectRecord();
+      }
+    });
+
+    list.appendChild(item);
+  });
+
+  dropdown.classList.remove("hidden");
+}
+
+function hideSearchResults() {
+  const dropdown = document.querySelector("#searchResultsDropdown");
+  if (dropdown) dropdown.classList.add("hidden");
+}
+
+
 // ── DATA CHANGE HANDLERS ─────────────────────────────────────────────────────
 function validateRecord(record) {
-  if (!record.inmateId || !record.firstName || !record.lastName) {
-    showMessage("Please enter the inmate ID, first name, and last name.");
+  if (!record.firstName || !record.lastName) {
+    showMessage("Please enter the visitor's first name and last name.");
     return false;
+  }
+  // Auto-assign inmateId from visitorNumber if not set (inmateId field is hidden)
+  if (!record.inmateId && record.visitorNumber) {
+    record.inmateId = record.visitorNumber;
+    if (fields.inmateId) fields.inmateId.value = record.visitorNumber;
   }
   return true;
 }
@@ -1081,12 +1358,16 @@ async function saveNewRecord() {
   const record = getFormRecord();
   if (!validateRecord(record)) return;
 
+  const name = [record.firstName, record.lastName].filter(Boolean).join(" ") || "this visitor";
+  const confirmed = await showSaveConfirm(name, record.visitorNumber || "");
+  if (!confirmed) return;
+
   applyStatusHistory(record);
 
   const isBlankSlot = records.length === 1 && !records[0].inmateId && !records[0].firstName;
   const duplicate = records.some((item, index) => item.inmateId === record.inmateId && index !== currentIndex);
   if (!isBlankSlot && duplicate) {
-    showMessage("That inmate ID is already in use. Please update the existing record instead.");
+    showMessage("That visitor ID is already in use. Please update the existing record instead.");
     return;
   }
 
@@ -1100,9 +1381,10 @@ async function saveNewRecord() {
   }
 
   isNewRecord = false;
-  await persistRecords("create_record", `ID ${record.inmateId} - ${record.firstName} ${record.lastName}`);
+  isEditingRecord = false;
+  await persistRecords("create_record", `${record.visitorNumber} - ${record.firstName} ${record.lastName}`);
   renderCurrentRecord();
-  showMessage("New inmate record saved successfully.", "success");
+  showMessage(`Visitor record for ${name} saved successfully.`, "success");
 }
 
 async function updateCurrentRecord() {
@@ -1114,18 +1396,24 @@ async function updateCurrentRecord() {
   const record = getFormRecord();
   if (!validateRecord(record)) return;
 
+  const name = [record.firstName, record.lastName].filter(Boolean).join(" ") || "this visitor";
+  const confirmed = await showUpdateConfirm(name, record.visitorNumber || record.inmateId || "");
+  if (!confirmed) return;
+
   applyStatusHistory(record);
 
   const duplicate = records.some((item, index) => item.inmateId === record.inmateId && index !== currentIndex);
   if (duplicate) {
-    showMessage("That inmate ID is already assigned to another record.");
+    showMessage("That visitor ID is already assigned to another record.");
     return;
   }
 
   records[currentIndex] = record;
-  await persistRecords("update_records", `ID ${record.inmateId} - ${record.firstName} ${record.lastName}`);
+  await persistRecords("update_records", `${record.visitorNumber || record.inmateId} - ${record.firstName} ${record.lastName}`);
+  isEditingRecord = false;
+  isNewRecord = false;
   renderCurrentRecord();
-  showMessage("Record updated successfully.", "success");
+  showMessage(`Visitor record for ${name} updated successfully.`, "success");
 }
 
 async function deleteRecord() {
@@ -1197,18 +1485,80 @@ function showDeleteConfirm(name, id) {
   });
 }
 
+function showSaveConfirm(name, visitorNumber) {
+  return new Promise(resolve => {
+    const dialog = document.getElementById("saveConfirmDialog");
+    const msg = document.getElementById("saveConfirmMessage");
+    const confirmBtn = document.getElementById("saveConfirmBtn");
+    const cancelBtn = document.getElementById("saveCancelBtn");
+
+    msg.textContent = visitorNumber
+      ? `You are about to save a new record for ${name} (Visitor ID: ${visitorNumber}).`
+      : `You are about to save a new record for ${name}.`;
+
+    const cleanup = () => {
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.close();
+    };
+
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+    dialog.addEventListener("cancel", onCancel);
+
+    dialog.showModal();
+  });
+}
+
+function showUpdateConfirm(name, id) {
+  return new Promise(resolve => {
+    const dialog = document.getElementById("updateConfirmDialog");
+    const msg = document.getElementById("updateConfirmMessage");
+    const confirmBtn = document.getElementById("updateConfirmBtn");
+    const cancelBtn = document.getElementById("updateCancelBtn");
+
+    msg.textContent = id
+      ? `You are about to update the record for ${name} (Visitor ID: ${id}).`
+      : `You are about to update the record for ${name}.`;
+
+    const cleanup = () => {
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.close();
+    };
+
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+    dialog.addEventListener("cancel", onCancel);
+
+    dialog.showModal();
+  });
+}
+
 async function createNewRecord() {
   if (!canEdit()) {
     showMessage("You do not have permission to add a new record.");
     return;
   }
 
-  records.push(emptyRecord());
+  const newRec = emptyRecord();
+  newRec.visitorNumber = generateVisitorNumber();
+  newRec.registrationDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  records.push(newRec);
   currentIndex = records.length - 1;
   isNewRecord = true;
+  isEditingRecord = false;
   renderCurrentRecord();
   showMessage("A new blank record is ready. Fill in the details and save.");
-  fields.inmateId.focus();
+  fields.firstName.focus();
 }
 
 function cancelNewRecord() {
@@ -1322,6 +1672,9 @@ async function setImage(event, key) {
       frontFacePreview.src = e.target.result;
       toggleImageTextLabel(frontFacePreview, "");
       record.images.frontFace = e.target.result;
+      // Also update the main visitor photo preview immediately
+      mainPreview.src = e.target.result;
+      mainPreviewText.textContent = "";
     } else if (key === "rightFace") {
       rightFacePreview.src = e.target.result;
       toggleImageTextLabel(rightFacePreview, "");
