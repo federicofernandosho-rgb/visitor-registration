@@ -1,8 +1,8 @@
-CREATE DATABASE IF NOT EXISTS inmate_profile_db
+CREATE DATABASE IF NOT EXISTS visitor_registration_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE inmate_profile_db;
+USE visitor_registration_db;
 
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
