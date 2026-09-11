@@ -1,13 +1,13 @@
-# GitLab CI/CD Pipeline - Inmate Profile Server
+# GitLab CI/CD Pipeline - Visitor Registration Server
 # Deploys automatically to your server on every merge to main.
 #
 # Required CI/CD Variables (Settings > CI/CD > Variables):
 #   SSH_PRIVATE_KEY   - Private SSH key with access to your server
 #   DEPLOY_HOST       - Server IP or hostname (e.g. 192.168.1.10)
 #   DEPLOY_USER       - SSH user on the server (e.g. ubuntu, root)
-#   DEPLOY_PATH       - App directory on the server (e.g. /opt/inmate-profile)
-#   SERVICE_NAME      - pm2 process name (default: inmate-profile)
-#   PORT              - App port (default: 3000)
+#   DEPLOY_PATH       - App directory on the server (e.g. /opt/visitor-registration)
+#   SERVICE_NAME      - pm2 process name (default: visitor-registration)
+#   PORT              - App port (default: 3001)
 
 stages:
   - test
@@ -53,7 +53,7 @@ deploy:production:
       when: on_success
   environment:
     name: production
-    url: http://$DEPLOY_HOST:${PORT:-3000}
+    url: http://$DEPLOY_HOST:${PORT:-3001}
   before_script:
     - apk add --no-cache openssh-client bash
     - eval $(ssh-agent -s)
@@ -66,9 +66,9 @@ deploy:production:
     - |
       ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << 'ENDSSH'
         set -euo pipefail
-        APP_DIR="${DEPLOY_PATH:-/opt/inmate-profile}"
-        SERVICE_NAME="${SERVICE_NAME:-inmate-profile}"
-        PORT="${PORT:-3000}"
+        APP_DIR="${DEPLOY_PATH:-/opt/visitor-registration}"
+        SERVICE_NAME="${SERVICE_NAME:-visitor-registration}"
+        PORT="${PORT:-3001}"
 
         echo "==> Pulling latest code from main..."
         cd "$APP_DIR"

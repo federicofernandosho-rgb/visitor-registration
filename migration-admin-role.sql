@@ -1,4 +1,4 @@
-USE inmate_profile_db;
+USE visitor_registration_db;
 
 ALTER TABLE users
   MODIFY role ENUM('admin', 'entry', 'readonly') NOT NULL DEFAULT 'readonly';

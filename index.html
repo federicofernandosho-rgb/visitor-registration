@@ -5,16 +5,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Belize Central Prison Kolbe Foundation</title>
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 
 <body>
   <section class="login-shell" id="loginShell">
     <div class="login-card">
       <div style="text-align: center; margin-bottom: 24px; padding-top: 10px;">
-        <h1 style="color: #10b981; font-size: 28px; font-weight: 700; margin: 0 0 4px 0; letter-spacing: 1px;">PIS</h1>
+        <h1 style="color: #10b981; font-size: 28px; font-weight: 700; margin: 0 0 4px 0; letter-spacing: 1px;">BCPIS</h1>
         <h2 style="color: #3b82f6; font-size: 14px; font-weight: 700; margin: 0 0 4px 0; letter-spacing: 0.5px;">BELIZE CENTRAL PRISON</h2>
         <h3 style="color: #10b981; font-size: 12px; font-weight: 700; margin: 0; letter-spacing: 0.5px;">VISITOR REGISTRATION</h3>
+        <p id="loginIntro" style="margin-top: 10px; margin-bottom: 0; font-size: 13.5px; color: var(--muted, #64748b);">Sign in to continue.</p>
       </div>
 
       <form id="loginForm" class="login-form">
@@ -59,7 +60,7 @@
           <button type="button" id="manageUsers">Users</button>
           <button type="button" id="auditLogButton">Audit Log</button>
           <button type="button" id="exportCsvButton">Export CSV</button>
-          <div class="record-status" id="recordStatus">Record 1 of 1</div>
+          <div class="record-status" id="recordStatus">Ready</div>
         </div>
       </div>
     </header>
@@ -71,9 +72,9 @@
         <div class="filter-bar" id="filterBar">
           <div class="search-filter-wrapper">
             <label class="filter-item">
-              <span>Search by Name or ID</span>
+              <span>Search Inmate by No. or Name</span>
               <div class="search-bar">
-                <input id="searchInput" name="searchInput" type="text" placeholder="First name, last name, or full name">
+                <input id="searchInput" name="searchInput" type="text" placeholder="Enter Inmate # (e.g. 3113) or Name...">
                 <button id="searchButton" type="button">Search</button>
               </div>
             </label>
@@ -99,6 +100,7 @@
               <li role="menuitem"><button type="button" id="adminMenuAudit">&#128196; Audit Log</button></li>
               <li role="menuitem"><button type="button" id="adminMenuExport">&#128190; Export CSV</button></li>
               <li role="menuitem"><button type="button" id="adminMenuEdit">&#9998; Edit Visitor Record</button></li>
+              <li role="menuitem"><button type="button" id="adminMenuLogout" style="color: #ef4444;">&#128682; Log Out</button></li>
             </ul>
           </div>
 
@@ -117,16 +119,75 @@
           <button type="button" class="secondary" id="clearFilter" style="display:none">Clear</button>
         </div>
 
+        <!-- Datagrid: Registered Visitors for Searched Inmate -->
+        <section class="inmate-datagrid-card" id="inmateDatagridCard" aria-label="Registered visitors for inmate">
+          <div class="datagrid-header">
+            <div class="datagrid-title-wrap">
+              <span class="datagrid-icon">&#128196;</span>
+              <div>
+                <div class="datagrid-title-row">
+                  <h3 class="datagrid-title">Registered Visitors for Inmate</h3>
+                  <span id="datagridInmateBadge" class="datagrid-inmate-badge">—</span>
+                  <span id="datagridCountBadge" class="datagrid-count-badge">0 Registered</span>
+                </div>
+                <p class="datagrid-subtitle">Visitor demographic profiles currently saved in the database for this inmate.</p>
+              </div>
+            </div>
+            <div class="datagrid-header-actions">
+              <button type="button" class="btn-register-new hidden" id="datagridRegisterNewBtn" title="Register a new visitor from the inmate's current visitor lists">
+                &#10133; Register New
+              </button>
+            </div>
+          </div>
+
+          <!-- Table container -->
+          <div class="datagrid-table-wrap" id="datagridTableWrap">
+            <table class="datagrid-table" id="registeredVisitorsTable">
+              <thead>
+                <tr>
+                  <th style="width: 54px;">Photo</th>
+                  <th style="width: 110px;">Visitor ID</th>
+                  <th>Visitor Name</th>
+                  <th>Relationship / Category</th>
+                  <th>Contact &amp; ID</th>
+                  <th style="width: 120px;">Reg. Date</th>
+                  <th style="width: 110px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="registeredVisitorsTbody">
+                <!-- Populated dynamically by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty state notice -->
+          <div id="datagridEmptyNotice" class="datagrid-empty-notice">
+            <div class="datagrid-empty-icon">&#128203;</div>
+            <p id="datagridEmptyText">Search an inmate above to view visitor records already registered in the system for that inmate.</p>
+          </div>
+        </section>
+
         <!-- Visitor Registration Card -->
         <div class="vr-card">
 
+          <!-- Linked Inmate Info Banner -->
+          <div id="inmateLinkBanner" class="inmate-link-banner hidden">
+            <div class="inmate-link-info">
+              <span class="inmate-link-icon">&#128279;</span>
+              <span>Linked Inmate: <strong id="linkInmateNoDisplay">—</strong> &mdash; <span id="linkInmateNameDisplay">—</span></span>
+            </div>
+            <button type="button" id="unlinkInmateBtn" class="inmate-unlink-btn" title="Unlink inmate">&times; Unlink</button>
+          </div>
+
           <div class="vr-section-title">Visitor Information</div>
 
-          <!-- Visitor ID (hidden but needed by JS) -->
+          <!-- Visitor ID & Inmate link fields (hidden) -->
           <label class="field inmate-id" style="display:none">
             <span>Record ID</span>
             <input id="inmateId" name="inmateId" type="text" inputmode="numeric" maxlength="7">
           </label>
+          <input id="vVisitorsId" name="vVisitorsId" type="hidden">
+          <input id="linkedInmateNo" name="linkedInmateNo" type="hidden">
 
           <!-- hidden status inputs kept for JS compatibility -->
           <input id="incarcerationIn" name="incarcerationStatus" type="radio" value="in" class="hidden">
@@ -242,7 +303,9 @@
         <button type="button" id="saveRecord" class="hidden" data-edit-only>Save Record</button>
         <button type="button" id="editRecord" data-admin-only>Edit Visitor Record</button>
         <button type="button" id="updateRecord" class="hidden" data-admin-only>Update Record</button>
+        <button type="button" id="cancelEditBtn" class="secondary hidden">Cancel Edit</button>
         <button type="button" id="deleteRecord" class="danger-button hidden" data-admin-only>Delete Record</button>
+        <button type="button" id="clearFormBtn" class="secondary" title="Clear form fields and start fresh">Clear Form</button>
       </div>
       <div class="actions-center" style="display: none !important;">
         <button type="button" id="previousRecord">Previous</button>
@@ -645,7 +708,105 @@
     </div>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <!-- Current Visitor Lists Modal -->
+  <dialog id="assignedVisitorsModal" class="assigned-visitors-dialog">
+    <div class="modal-shell av-modal-shell">
+      <header class="modal-header av-modal-header">
+        <div class="av-header-left">
+          <div class="av-header-title-row">
+            <h2>Current Visitor Lists</h2>
+            <span id="avInmateBadge" class="av-inmate-badge">Inmate #<span id="avInmateNo">—</span> &mdash; <span id="avInmateName">—</span></span>
+            <span id="avInmateStatus" class="av-status-badge">ACTIVE</span>
+          </div>
+          <p id="avInmateSubtext">Select a visitor record and pick which fields to auto-fill into the Visitor Registration form.</p>
+        </div>
+        <button type="button" class="icon-button av-close-btn" id="closeAssignedVisitorsModal" aria-label="Close current visitor lists">&times;</button>
+      </header>
+
+      <section class="modal-body av-modal-body">
+        <!-- Visitor Records List -->
+        <div class="av-section-label">
+          <span>1. Select Visitor Record (<span id="avVisitorsCount">0</span> on file):</span>
+        </div>
+
+        <!-- Tabs: Regular Visitors vs Family Day Visitors -->
+        <div class="av-tabs-bar" role="tablist" aria-label="Visitor categories">
+          <button type="button" class="av-tab-btn active" id="avTabRegular" role="tab" aria-selected="true" data-tab="regular">
+            <span class="av-tab-label">Regular Visitors</span>
+            <span class="av-tab-badge" id="avCountRegular">0</span>
+          </button>
+          <button type="button" class="av-tab-btn" id="avTabFamily" role="tab" aria-selected="false" data-tab="family">
+            <span class="av-tab-label">&#128106; Family Day Visitors</span>
+            <span class="av-tab-badge" id="avCountFamily">0</span>
+          </button>
+        </div>
+
+        <div id="assignedVisitorsList" class="av-visitors-list" role="listbox">
+          <!-- Dynamically populated visitor cards -->
+        </div>
+
+        <!-- Field Selection Matrix with Checkboxes -->
+        <div class="av-field-section" id="avFieldSelectionSection">
+          <div class="av-field-section-header">
+            <span class="av-section-label">2. Select Fields to Transfer into Form:</span>
+            <div class="av-field-quick-actions">
+              <button type="button" class="av-link-btn" id="avSelectAllFieldsBtn">Select All</button>
+              <span class="av-sep">&bull;</span>
+              <button type="button" class="av-link-btn" id="avDeselectAllFieldsBtn">Clear All</button>
+            </div>
+          </div>
+          <div class="av-checkbox-grid">
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckFirstName" checked>
+              <span>First Name</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckMiddleName" checked>
+              <span>Middle Name</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckLastName" checked>
+              <span>Last Name</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckDob" checked>
+              <span>Date of Birth / Age</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckPhone" checked>
+              <span>Phone Number</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckNationalId" checked>
+              <span>National ID / Passport</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckPhoto" checked>
+              <span>Visitor Photo</span>
+            </label>
+            <label class="av-checkbox-label">
+              <input type="checkbox" id="fieldCheckNotes" checked>
+              <span>Relationship &amp; Inmate Info (to Notes)</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <footer class="modal-footer av-modal-footer">
+        <div class="av-footer-left">
+          <button type="button" class="secondary" id="avNewVisitorForInmateBtn">
+            &#10133; Register New Visitor for this Inmate
+          </button>
+        </div>
+        <div class="av-footer-right">
+          <button type="button" class="secondary" id="avCancelBtn">Cancel</button>
+          <button type="button" class="primary" id="avApplyBtn" disabled>Apply Selected Fields to Form</button>
+        </div>
+      </footer>
+    </div>
+  </dialog>
+
+  <script src="app.js?v=17"></script>
 </body>
 
 </html>

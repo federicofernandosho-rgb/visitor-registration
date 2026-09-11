@@ -47,7 +47,7 @@ async function start() {
   });
 
   server.listen(PORT, HOST, () => {
-    console.log(`Inmate Profile server running at http://${HOST}:${PORT}`);
+    console.log(`Visitor Registration server running at http://${HOST}:${PORT}`);
   });
 }
 
@@ -128,7 +128,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/export/csv") {
     const records = await getRecords();
-    const headers = ["visitorNumber","registrationDate","inmateId","firstName","middleName","lastName","alias","dob","age","address","affiliation","gangAffiliation","comment","inPrison","admissionDate","dischargeDate"];
+    const headers = ["vVisitorsId","visitorNumber","registrationDate","inmateId","firstName","middleName","lastName","alias","dob","age","address","phone","nationalId","affiliation","gangAffiliation","comment","inPrison","admissionDate","dischargeDate"];
     const csvRows = [headers.join(",")];
     for (const r of records) {
       csvRows.push(headers.map(h => csvCell(r[h])).join(","));
@@ -140,6 +140,23 @@ async function handleApi(req, res, url) {
       "Cache-Control": "no-store"
     });
     res.end(csv);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/inmates/search") {
+    const query = (url.searchParams.get("q") || "").trim();
+    if (!query) {
+      sendJson(res, 200, { inmates: [] });
+      return;
+    }
+
+    try {
+      const inmates = await searchInmatesWithVisitors(query);
+      sendJson(res, 200, { inmates });
+    } catch (err) {
+      console.error("Search inmates error:", err);
+      sendJson(res, 500, { error: "Failed to search inmates", message: err.message });
+    }
     return;
   }
 
@@ -159,7 +176,8 @@ async function handleApi(req, res, url) {
     const records = Array.isArray(body.records) ? body.records : [];
     await saveRecords(records);
     await appendAudit({ action: body.auditAction || "update_records", username: currentUser.username, userId: currentUser.id, detail: body.auditDetail || "", timestamp: new Date().toISOString() });
-    sendJson(res, 200, { records });
+    const refreshed = await getRecords();
+    sendJson(res, 200, { records: refreshed });
     return;
   }
 
@@ -182,7 +200,8 @@ async function handleApi(req, res, url) {
     currentRecords.splice(index, 1);
     await saveRecords(currentRecords);
     await appendAudit({ action: "delete_record", username: currentUser.username, userId: currentUser.id, detail: `ID ${deleted.inmateId} - ${deleted.firstName} ${deleted.lastName}`, timestamp: new Date().toISOString() });
-    sendJson(res, 200, { records: currentRecords });
+    const refreshed = await getRecords();
+    sendJson(res, 200, { records: refreshed });
     return;
   }
 
@@ -498,8 +517,10 @@ async function getRecords() {
   const [inmateRows] = await dbPool.query(`
     SELECT
       id, inmate_id AS inmateId, visitor_number AS visitorNumber, registration_date AS registrationDate,
+      v_visitors_id AS vVisitorsId,
       first_name AS firstName, middle_name AS middleName,
-      last_name AS lastName, alias, dob, age, address, comment, affiliation,
+      last_name AS lastName, alias, dob, age, address, phone, national_id AS nationalId,
+      comment, affiliation,
       gang_affiliation AS gangAffiliation, person_name AS personName, in_prison AS inPrison,
       admission_date AS admissionDate, discharge_date AS dischargeDate, status_history AS statusHistory
     FROM inmates
@@ -528,9 +549,11 @@ async function getRecords() {
     }));
 
     return {
+      id: row.id,
       inmateId: row.inmateId || "",
       visitorNumber: row.visitorNumber || "",
       registrationDate: mysqlDate(row.registrationDate) || "",
+      vVisitorsId: row.vVisitorsId ? Number(row.vVisitorsId) : null,
       firstName: row.firstName || "",
       middleName: row.middleName || "",
       lastName: row.lastName || "",
@@ -538,6 +561,8 @@ async function getRecords() {
       dob: mysqlDate(row.dob),
       age: row.age === null || row.age === undefined ? "" : String(row.age),
       address: row.address || "",
+      phone: row.phone || "",
+      nationalId: row.nationalId || "",
       comment: row.comment || "",
       affiliation: row.affiliation || "",
       gangAffiliation: row.gangAffiliation || "",
@@ -565,13 +590,14 @@ async function saveRecords(records) {
     for (const record of records) {
       const [result] = await connection.execute(`
         INSERT INTO inmates (
-          inmate_id, visitor_number, registration_date, first_name, middle_name, last_name, alias, dob, age, address,
-          comment, affiliation, gang_affiliation, person_name, in_prison, admission_date, discharge_date, status_history
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          inmate_id, visitor_number, registration_date, v_visitors_id, first_name, middle_name, last_name, alias, dob, age, address,
+          phone, national_id, comment, affiliation, gang_affiliation, person_name, in_prison, admission_date, discharge_date, status_history
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         record.inmateId || "",
-        record.visitorNumber || "",
+        record.visitorNumber || (record.vVisitorsId ? String(record.vVisitorsId) : ""),
         record.registrationDate || null,
+        record.vVisitorsId ? Number(record.vVisitorsId) : null,
         record.firstName || "",
         record.middleName || "",
         record.lastName || "",
@@ -579,6 +605,8 @@ async function saveRecords(records) {
         record.dob || null,
         record.age ? Number(record.age) : null,
         record.address || "",
+        record.phone || "",
+        record.nationalId || "",
         record.comment || "",
         record.affiliation || "",
         record.gangAffiliation || "",
@@ -594,6 +622,17 @@ async function saveRecords(records) {
       await insertPhoto(connection, inmateDbId, "front_face", images.frontFace);
       await insertPhoto(connection, inmateDbId, "left_face", images.leftFace);
       await insertPhoto(connection, inmateDbId, "right_face", images.rightFace);
+
+      // Synchronize front face photo to visitor_list_manager.v_visitors if linked to a visitor
+      if (record.vVisitorsId && images.frontFace) {
+        const photoBuffer = dataUrlToBuffer(images.frontFace);
+        if (photoBuffer) {
+          await connection.execute(
+            "UPDATE visitor_list_manager.v_visitors SET photo = ? WHERE visitor_id = ?",
+            [photoBuffer, Number(record.vVisitorsId)]
+          );
+        }
+      }
 
       for (const tattoo of images.tattoos) {
         const src = typeof tattoo === "string" ? tattoo : (tattoo.src || "");
@@ -613,6 +652,109 @@ async function saveRecords(records) {
   } finally {
     connection.release();
   }
+}
+
+async function searchInmatesWithVisitors(query) {
+  if (!dbPool) return [];
+
+  const term = `%${query}%`;
+  const sql = `
+    SELECT
+      i.inmate_id,
+      i.inmate_no,
+      i.first_name AS inmate_first_name,
+      i.middle_name AS inmate_middle_name,
+      i.last_name AS inmate_last_name,
+      i.dob AS inmate_dob,
+      i.gender AS inmate_gender,
+      i.custody_status,
+      vl.list_type,
+      vl.visitor_list_id,
+      vl.status AS list_status,
+      vl.approved AS is_approved,
+      vl.banned AS is_banned,
+      vl.banned_reason,
+      v.visitor_id,
+      v.first_name AS visitor_first_name,
+      v.middle_name AS visitor_middle_name,
+      v.last_name AS visitor_last_name,
+      v.dob AS visitor_dob,
+      v.gender AS visitor_gender,
+      v.email AS visitor_national_id,
+      v.phone AS visitor_phone,
+      TO_BASE64(v.photo) AS photo_base64,
+      COALESCE(r_vl.relationship_name, r_v.relationship_name, 'OTHER') AS relationship_name
+    FROM visitor_list_manager.v_inmates i
+    LEFT JOIN (
+      SELECT 'regular' AS list_type, visitor_list_id, inmate_id, visitor_id, relationship_type_id, status, approved, banned, banned_reason
+      FROM visitor_list_manager.v_visitor_lists
+      UNION ALL
+      SELECT 'family' AS list_type, f_visitor_list_id AS visitor_list_id, inmate_id, visitor_id, relationship_type_id, status, approved, banned, banned_reason
+      FROM visitor_list_manager.v_f_visitor_lists
+    ) vl ON vl.inmate_id = i.inmate_id
+    LEFT JOIN visitor_list_manager.v_visitors v ON vl.visitor_id = v.visitor_id
+    LEFT JOIN visitor_list_manager.v_relationship_type r_vl ON vl.relationship_type_id = r_vl.relationship_type_id
+    LEFT JOIN visitor_list_manager.v_relationship_type r_v ON v.relationship_type_id = r_v.relationship_type_id
+    WHERE i.inmate_no = ?
+       OR i.inmate_no LIKE ?
+       OR i.first_name LIKE ?
+       OR i.last_name LIKE ?
+       OR CONCAT_WS(' ', i.first_name, i.middle_name, i.last_name) LIKE ?
+    ORDER BY i.inmate_no, vl.list_type, v.last_name, v.first_name
+    LIMIT 200
+  `;
+
+  const [rows] = await dbPool.query(sql, [query, term, term, term, term]);
+  const inmatesMap = new Map();
+
+  for (const row of rows) {
+    if (!inmatesMap.has(row.inmate_id)) {
+      inmatesMap.set(row.inmate_id, {
+        inmateId: row.inmate_id,
+        inmateNo: row.inmate_no,
+        firstName: row.inmate_first_name || "",
+        middleName: row.inmate_middle_name || "",
+        lastName: row.inmate_last_name || "",
+        dob: mysqlDate(row.inmate_dob),
+        gender: row.inmate_gender || "",
+        custodyStatus: row.custody_status || "",
+        regularVisitors: [],
+        familyVisitors: [],
+        visitors: []
+      });
+    }
+
+    if (row.visitor_id) {
+      const inmate = inmatesMap.get(row.inmate_id);
+      const visitorObj = {
+        listType: row.list_type || "regular",
+        visitorListId: row.visitor_list_id,
+        visitorId: row.visitor_id,
+        status: row.list_status || "ACTIVE",
+        isApproved: Boolean(row.is_approved),
+        isBanned: Boolean(row.is_banned),
+        bannedReason: row.banned_reason || "",
+        firstName: row.visitor_first_name || "",
+        middleName: row.visitor_middle_name || "",
+        lastName: row.visitor_last_name || "",
+        dob: mysqlDate(row.visitor_dob),
+        gender: row.visitor_gender || "",
+        nationalId: row.visitor_national_id || "",
+        phone: row.visitor_phone || "",
+        photo: row.photo_base64 ? `data:image/jpeg;base64,${String(row.photo_base64).replace(/\s+/g, "")}` : "",
+        relationshipName: row.relationship_name || "OTHER"
+      };
+
+      inmate.visitors.push(visitorObj);
+      if (row.list_type === "family") {
+        inmate.familyVisitors.push(visitorObj);
+      } else {
+        inmate.regularVisitors.push(visitorObj);
+      }
+    }
+  }
+
+  return Array.from(inmatesMap.values());
 }
 
 async function insertPhoto(connection, inmateDbId, photoType, imageData) {
@@ -825,6 +967,18 @@ function getMimeType(dataUrl) {
   return match ? match[1] : "image/jpeg";
 }
 
+function dataUrlToBuffer(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== "string") return null;
+  const commaIndex = dataUrl.indexOf(",");
+  const base64Data = commaIndex !== -1 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+  try {
+    const buf = Buffer.from(base64Data, "base64");
+    return buf.length > 0 ? buf : null;
+  } catch {
+    return null;
+  }
+}
+
 function csvCell(value) {
   const str = String(value === null || value === undefined ? "" : value);
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -844,6 +998,9 @@ function sendJson(res, status, payload) {
 function defaultRecords() {
   return [{
     inmateId: "2864",
+    visitorNumber: "VIS-00001",
+    registrationDate: "2026-09-09",
+    vVisitorsId: null,
     firstName: "Justin",
     middleName: "",
     lastName: "Goff",
@@ -851,6 +1008,8 @@ function defaultRecords() {
     dob: "1975-04-16",
     age: "51",
     address: "Mayflower Drive, Orange Walk",
+    phone: "",
+    nationalId: "",
     comment: "",
     affiliation: "",
     gangAffiliation: "",

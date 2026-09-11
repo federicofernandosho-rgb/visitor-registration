@@ -1,2 +1,2 @@
-Place nssm.exe in this folder before running deployment\Install-InmateProfileService.ps1,
+Place nssm.exe in this folder before running deployment\Install-VisitorRegistrationService.ps1,
 or install NSSM globally so nssm.exe is available in PATH.

@@ -1,4 +1,4 @@
-USE inmate_profile_db;
+USE visitor_registration_db;
 
 INSERT INTO users (username, password_hash, role)
 VALUES (

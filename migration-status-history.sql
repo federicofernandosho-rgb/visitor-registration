@@ -1,4 +1,4 @@
-USE inmate_profile_db;
+USE visitor_registration_db;
 
 ALTER TABLE inmates
   ADD COLUMN admission_date DATE NULL,

@@ -1,8 +1,8 @@
 {
-  "name": "inmate-profile",
+  "name": "visitor-registration",
   "version": "1.0.0",
   "private": true,
-  "description": "Inmate Profile web application with built-in backend authentication and record storage.",
+  "description": "Visitor Registration web application with built-in backend authentication and record storage.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

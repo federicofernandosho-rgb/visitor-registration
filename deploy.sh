@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# deploy.sh - simple deployment helper for Inmate Profile
+# deploy.sh - simple deployment helper for Visitor Registration
 # Usage:
 #   ./deploy.sh <repo-url> [branch]
 #   OR if repository already exists on the server:
-#   APP_DIR=/opt/inmate-profile PORT=3001 ./deploy.sh
+#   APP_DIR=/opt/visitor-registration PORT=3001 ./deploy.sh
 
 REPO_URL=${1:-}
 BRANCH=${2:-main}
-APP_DIR=${APP_DIR:-/opt/inmate-profile}
+APP_DIR=${APP_DIR:-/opt/visitor-registration}
 PORT=${PORT:-3001}
-SERVICE_NAME=${SERVICE_NAME:-inmate-profile}
+SERVICE_NAME=${SERVICE_NAME:-visitor-registration}
 
 echo "Deploy starting: APP_DIR=$APP_DIR BRANCH=$BRANCH PORT=$PORT"
 
@@ -73,7 +73,7 @@ else
     echo "Writing systemd unit to $SERVICE_FILE"
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
-Description=Inmate Profile Service
+Description=Visitor Registration Service
 After=network.target
 
 [Service]

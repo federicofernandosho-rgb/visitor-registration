@@ -3,6 +3,8 @@ const LEGACY_RECORDS_KEY = "intel-inmate-profileing-records";
 
 const emptyRecord = () => ({
   inmateId: "",
+  vVisitorsId: null,
+  linkedInmateNo: "",
   visitorNumber: "",
   registrationDate: "",
   firstName: "",
@@ -12,6 +14,8 @@ const emptyRecord = () => ({
   dob: "",
   age: "",
   address: "",
+  phone: "",
+  nationalId: "",
   affiliation: "",
   comment: "",
   gangAffiliation: "",
@@ -29,16 +33,7 @@ const emptyRecord = () => ({
 });
 
 function generateVisitorNumber() {
-  // Build a sequential number based on highest existing visitorNumber
-  let maxNum = 0;
-  records.forEach(r => {
-    if (r.visitorNumber) {
-      const n = parseInt(r.visitorNumber.replace(/^VIS-0*/i, ""), 10);
-      if (!isNaN(n) && n > maxNum) maxNum = n;
-    }
-  });
-  const next = maxNum + 1;
-  return "VIS-" + String(next).padStart(5, "0");
+  return "";
 }
 
 let records = [];
@@ -77,6 +72,66 @@ const fields = {
 
 const searchInput = document.querySelector("#searchInput");
 const searchButton = document.querySelector("#searchButton");
+
+// Visitor specific fields & link elements
+const visitorPhone = document.querySelector("#visitorPhone");
+const visitorIdInput = document.querySelector("#visitorId");
+const visitNotes = document.querySelector("#visitNotes");
+const vVisitorsId = document.querySelector("#vVisitorsId");
+const linkedInmateNo = document.querySelector("#linkedInmateNo");
+const inmateLinkBanner = document.querySelector("#inmateLinkBanner");
+const linkInmateNoDisplay = document.querySelector("#linkInmateNoDisplay");
+const linkInmateNameDisplay = document.querySelector("#linkInmateNameDisplay");
+const unlinkInmateBtn = document.querySelector("#unlinkInmateBtn");
+
+// Assigned Visitors Modal elements
+const assignedVisitorsModal = document.querySelector("#assignedVisitorsModal");
+const closeAssignedVisitorsModal = document.querySelector("#closeAssignedVisitorsModal");
+const avCancelBtn = document.querySelector("#avCancelBtn");
+const avApplyBtn = document.querySelector("#avApplyBtn");
+const avNewVisitorForInmateBtn = document.querySelector("#avNewVisitorForInmateBtn");
+const avInmateNo = document.querySelector("#avInmateNo");
+const avInmateName = document.querySelector("#avInmateName");
+const avInmateStatus = document.querySelector("#avInmateStatus");
+const avVisitorsCount = document.querySelector("#avVisitorsCount");
+const assignedVisitorsList = document.querySelector("#assignedVisitorsList");
+const avSelectAllFieldsBtn = document.querySelector("#avSelectAllFieldsBtn");
+const avDeselectAllFieldsBtn = document.querySelector("#avDeselectAllFieldsBtn");
+
+// Tab selectors in Assigned Visitors Modal
+const avTabRegular = document.querySelector("#avTabRegular");
+const avTabFamily = document.querySelector("#avTabFamily");
+const avCountRegular = document.querySelector("#avCountRegular");
+const avCountFamily = document.querySelector("#avCountFamily");
+let currentVisitorTab = "regular"; // "regular" | "family"
+
+// Field checkboxes in modal
+const fieldCheckFirstName = document.querySelector("#fieldCheckFirstName");
+const fieldCheckMiddleName = document.querySelector("#fieldCheckMiddleName");
+const fieldCheckLastName = document.querySelector("#fieldCheckLastName");
+const fieldCheckDob = document.querySelector("#fieldCheckDob");
+const fieldCheckPhone = document.querySelector("#fieldCheckPhone");
+const fieldCheckNationalId = document.querySelector("#fieldCheckNationalId");
+const fieldCheckPhoto = document.querySelector("#fieldCheckPhoto");
+const fieldCheckNotes = document.querySelector("#fieldCheckNotes");
+
+let currentInmateMatch = null;
+let selectedVisitorRecord = null;
+
+// Clear form & Edit cancellation buttons
+const clearFormBtn = document.querySelector("#clearFormBtn");
+const cancelEditBtn = document.querySelector("#cancelEditBtn");
+
+// Registered Visitors Datagrid elements
+const inmateDatagridCard = document.querySelector("#inmateDatagridCard");
+const datagridTableWrap = document.querySelector("#datagridTableWrap");
+const registeredVisitorsTable = document.querySelector("#registeredVisitorsTable");
+const registeredVisitorsTbody = document.querySelector("#registeredVisitorsTbody");
+const datagridInmateBadge = document.querySelector("#datagridInmateBadge");
+const datagridCountBadge = document.querySelector("#datagridCountBadge");
+const datagridEmptyNotice = document.querySelector("#datagridEmptyNotice");
+const datagridEmptyText = document.querySelector("#datagridEmptyText");
+const datagridRegisterNewBtn = document.querySelector("#datagridRegisterNewBtn");
 
 // Pagination & filter state
 let pageSize = 10;
@@ -119,7 +174,12 @@ let wheelTimeout;
 loginForm.addEventListener("submit", handleLogin);
 firstUserForm.addEventListener("submit", handleFirstUserCreate);
 manageUsersButton.addEventListener("click", openUsersModal);
-logoutButton.addEventListener("click", logout);
+if (logoutButton) {
+  logoutButton.addEventListener("click", (e) => {
+    if (e) e.preventDefault();
+    logout();
+  });
+}
 document.querySelector("#closeUsersModal").addEventListener("click", () => usersDialog.close());
 document.querySelector("#createUserForm").addEventListener("submit", handleCreateUser);
 document.querySelector("#previousRecord").addEventListener("click", showPreviousRecord);
@@ -128,6 +188,21 @@ document.querySelector("#newRecord").addEventListener("click", createNewRecord);
 document.querySelector("#saveRecord").addEventListener("click", saveNewRecord);
 const cancelBtn = document.querySelector("#cancelRecord");
 if (cancelBtn) cancelBtn.addEventListener("click", cancelNewRecord);
+if (clearFormBtn) clearFormBtn.addEventListener("click", clearForm);
+if (cancelEditBtn) cancelEditBtn.addEventListener("click", cancelEdit);
+if (datagridRegisterNewBtn) {
+  datagridRegisterNewBtn.addEventListener("click", () => {
+    if (isNewRecord) {
+      showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before registering another visitor.", "info");
+      return;
+    }
+    if (currentInmateMatch) {
+      openAssignedVisitorsModal(currentInmateMatch);
+    } else {
+      showMessage("Please search an inmate first before registering a new visitor.", "info");
+    }
+  });
+}
 document.querySelector("#updateRecord").addEventListener("click", updateCurrentRecord);
 document.querySelector("#deleteRecord").addEventListener("click", deleteRecord);
 document.querySelector("#generatePdf").addEventListener("click", generatePdfReport);
@@ -216,6 +291,10 @@ document.querySelector("#frontFaceUpload").addEventListener("change", event => s
   if (editMenuItem) {
     editMenuItem.addEventListener("click", () => { closeMenu(); startEditingRecord(); });
   }
+  const logoutMenuItem = document.querySelector("#adminMenuLogout");
+  if (logoutMenuItem) {
+    logoutMenuItem.addEventListener("click", () => { closeMenu(); logout(); });
+  }
 
   // Close on outside click
   document.addEventListener("click", () => closeMenu());
@@ -235,6 +314,9 @@ function startEditingRecord() {
     field.disabled = false;
   });
   fields.age.disabled = true;
+  if (visitorPhone) visitorPhone.disabled = false;
+  if (visitorIdInput) visitorIdInput.disabled = false;
+  if (visitNotes) visitNotes.disabled = false;
   document.querySelectorAll('input[type="file"]').forEach(input => {
     input.disabled = false;
   });
@@ -599,20 +681,22 @@ async function initializeAuth() {
 }
 
 function showFirstUser() {
-  loginForm.classList.add("hidden");
-  firstUserForm.classList.remove("hidden");
-  loginIntro.textContent = "Create the first super admin user.";
-  loginShell.classList.remove("hidden");
-  appShell.classList.add("hidden");
+  if (loginForm) loginForm.classList.add("hidden");
+  if (firstUserForm) firstUserForm.classList.remove("hidden");
+  if (loginIntro) loginIntro.textContent = "Create the first super admin user.";
+  if (loginShell) loginShell.classList.remove("hidden");
+  if (appShell) appShell.classList.add("hidden");
 }
 
 function showLogin() {
-  loginForm.classList.remove("hidden");
-  firstUserForm.classList.add("hidden");
-  loginIntro.textContent = "Sign in to continue.";
-  loginShell.classList.remove("hidden");
-  appShell.classList.add("hidden");
+  if (loginForm) loginForm.classList.remove("hidden");
+  if (firstUserForm) firstUserForm.classList.add("hidden");
+  if (loginIntro) loginIntro.textContent = "Sign in to continue.";
+  if (loginShell) loginShell.classList.remove("hidden");
+  if (appShell) appShell.classList.add("hidden");
   currentUser = null;
+  const usernameInput = document.querySelector("#loginUsername");
+  if (usernameInput) usernameInput.focus();
 }
 
 async function showApp() {
@@ -631,7 +715,7 @@ async function showApp() {
   applyAccessMode();
   await loadRecordsFromBackend();
   await migrateLegacyRecordsIfNeeded();
-  renderCurrentRecord();
+  clearForm(true);
 }
 
 async function handleLogin(event) {
@@ -807,7 +891,15 @@ function logout() {
   authToken = "";
   currentUser = null;
   records = [];
+  currentInmateMatch = null;
+  selectedVisitorRecord = null;
   document.body.classList.remove("readonly-mode");
+  clearForm(true);
+  if (loginForm) loginForm.reset();
+  if (loginMessage) {
+    loginMessage.textContent = "";
+    loginMessage.style.cssText = "";
+  }
   showLogin();
 }
 
@@ -866,6 +958,9 @@ function applyAccessMode() {
     field.disabled = readOnly;
   });
   fields.age.disabled = true;
+  if (visitorPhone) visitorPhone.disabled = readOnly;
+  if (visitorIdInput) visitorIdInput.disabled = readOnly;
+  if (visitNotes) visitNotes.disabled = readOnly;
 
   document.querySelectorAll("[data-edit-only]").forEach(element => {
     element.disabled = readOnly;
@@ -888,12 +983,15 @@ function getFormRecord() {
   const statusDateValue = fields.statusDate.dataset.isoValue || parseDateInput(fields.statusDate.value);
   fields.age.value = age;
 
+  const notesVal = visitNotes ? visitNotes.value.trim() : (fields.comment ? fields.comment.value.trim() : "");
+
   return {
     ...current,
     inmateId: fields.inmateId.value.trim(),
-    // visitorNumber and registrationDate are IMMUTABLE — always preserved from current record
+    vVisitorsId: vVisitorsId && vVisitorsId.value ? Number(vVisitorsId.value) : (current.vVisitorsId || null),
+    linkedInmateNo: linkedInmateNo ? linkedInmateNo.value.trim() : (current.linkedInmateNo || ""),
     visitorNumber: current.visitorNumber || "",
-    registrationDate: current.registrationDate || "",
+    registrationDate: current.registrationDate || (isNewRecord ? new Date().toISOString().slice(0, 10) : ""),
     firstName: fields.firstName.value.trim(),
     middleName: fields.middleName.value.trim(),
     lastName: fields.lastName.value.trim(),
@@ -901,8 +999,10 @@ function getFormRecord() {
     dob,
     age,
     address: fields.address.value.trim(),
+    phone: visitorPhone ? visitorPhone.value.trim() : (current.phone || ""),
+    nationalId: visitorIdInput ? visitorIdInput.value.trim() : (current.nationalId || ""),
     affiliation: fields.affiliation.value.trim(),
-    comment: fields.comment.value.trim(),
+    comment: notesVal,
     inPrison: fields.incarcerationIn.checked,
     images: normalizeImages(current.images),
     admissionDate: fields.incarcerationIn.checked ? statusDateValue : (current.admissionDate || ""),
@@ -946,6 +1046,18 @@ function renderCurrentRecord() {
     }
   });
 
+  if (visitorPhone) visitorPhone.value = record.phone || "";
+  if (visitorIdInput) visitorIdInput.value = record.nationalId || "";
+  if (visitNotes) visitNotes.value = record.comment || "";
+  if (vVisitorsId) vVisitorsId.value = record.vVisitorsId ? String(record.vVisitorsId) : "";
+  if (linkedInmateNo) linkedInmateNo.value = record.linkedInmateNo || "";
+
+  if (record.inmateId) {
+    updateInmateLinkBanner(record.linkedInmateNo || record.inmateId, record.personName || `Inmate #${record.inmateId}`);
+  } else {
+    updateInmateLinkBanner("", "");
+  }
+
   updateStatusDateVisibility();
   fields.age.value = calculateAge(record.dob);
 
@@ -953,7 +1065,7 @@ function renderCurrentRecord() {
   const visIdDisplay = document.querySelector("#visitorIdDisplay");
 
   if (visIdDisplay) {
-    visIdDisplay.textContent = record.visitorNumber || "—";
+    visIdDisplay.textContent = record.vVisitorsId ? `#${record.vVisitorsId}` : (record.visitorNumber || "—");
   }
 
   if (regDateElem) {
@@ -1011,12 +1123,15 @@ function renderCurrentRecord() {
   const deleteButton = document.querySelector("#deleteRecord");
   const filterBar = document.querySelector("#filterBar");
 
+  if (clearFormBtn) clearFormBtn.classList.remove("hidden");
+
   if (isNewRecord) {
-    // When selecting new visitor: ONLY show save record
+    // When selecting new visitor: ONLY show save record and clear form
     saveButton.classList.remove("hidden");
     newButton.classList.add("hidden");
     if (editButton) editButton.classList.add("hidden");
     updateButton.classList.add("hidden");
+    if (cancelEditBtn) cancelEditBtn.classList.add("hidden");
     deleteButton.classList.add("hidden");
     generatePdfButton.classList.add("hidden");
     if (cancelButton) cancelButton.classList.add("hidden");
@@ -1025,8 +1140,9 @@ function renderCurrentRecord() {
     intelButton.classList.add("hidden");
     if (filterBar) filterBar.classList.add("hidden");
   } else if (isEditingRecord) {
-    // When editing visitor in admin: ONLY show update record
+    // When editing visitor in admin: show update record and cancel edit
     updateButton.classList.remove("hidden");
+    if (cancelEditBtn) cancelEditBtn.classList.remove("hidden");
     saveButton.classList.add("hidden");
     newButton.classList.add("hidden");
     if (editButton) editButton.classList.add("hidden");
@@ -1041,16 +1157,320 @@ function renderCurrentRecord() {
     // Normal viewing state
     saveButton.classList.add("hidden");
     updateButton.classList.add("hidden");
+    if (cancelEditBtn) cancelEditBtn.classList.add("hidden");
     newButton.classList.remove("hidden");
-    if (editButton) editButton.classList.toggle("hidden", !canManageUsers());
-    deleteButton.classList.toggle("hidden", !canManageUsers());
-    generatePdfButton.classList.toggle("hidden", !canManageUsers());
+    const hasActiveRecord = Boolean(record && (record.firstName || record.inmateId || record.vVisitorsId || record.visitorNumber));
+    if (editButton) editButton.classList.toggle("hidden", !canManageUsers() || !hasActiveRecord);
+    deleteButton.classList.toggle("hidden", !canManageUsers() || !hasActiveRecord);
+    generatePdfButton.classList.toggle("hidden", !canManageUsers() || !hasActiveRecord);
     if (cancelButton) cancelButton.classList.add("hidden");
     nextButton.classList.add("hidden");
     prevButton.classList.add("hidden");
-    intelButton.classList.remove("hidden");
+    intelButton.classList.toggle("hidden", !hasActiveRecord);
     if (filterBar) filterBar.classList.remove("hidden");
   }
+
+  // Update datagrid for currently viewed record if linked to an inmate
+  if (record && (record.inmateId || record.linkedInmateNo)) {
+    renderRegisteredVisitorsDatagrid(record.inmateId, record.linkedInmateNo, record.personName);
+  } else if (currentInmateMatch) {
+    const fullName = `${currentInmateMatch.firstName || ""} ${currentInmateMatch.lastName || ""}`.trim();
+    renderRegisteredVisitorsDatagrid(currentInmateMatch.inmateId, currentInmateMatch.inmateNo, fullName);
+  } else {
+    renderRegisteredVisitorsDatagrid("", "", "");
+  }
+}
+
+function clearForm(isInitialLoad = false) {
+  // Clear all standard form fields
+  Object.entries(fields).forEach(([key, field]) => {
+    if (field.type === "radio" || field.type === "checkbox") {
+      field.checked = false;
+    } else {
+      field.value = "";
+    }
+  });
+
+  if (visitorPhone) visitorPhone.value = "";
+  if (visitorIdInput) visitorIdInput.value = "";
+  if (visitNotes) visitNotes.value = "";
+  if (vVisitorsId) vVisitorsId.value = "";
+  if (linkedInmateNo) linkedInmateNo.value = "";
+
+  // Reset displays
+  const visIdDisplay = document.querySelector("#visitorIdDisplay");
+  if (visIdDisplay) visIdDisplay.textContent = "—";
+  const regDateElem = document.querySelector("#registrationDate");
+  if (regDateElem) regDateElem.value = "";
+
+  // Reset photo previews
+  mainPreview.src = "";
+  mainPreviewText.textContent = "No photo";
+  const photoFrame = document.querySelector(".photo-frame");
+  if (photoFrame) photoFrame.classList.add("has-no-photos");
+
+  const hoverFront = document.querySelector("#hoverFrontPreview");
+  const hoverRight = document.querySelector("#hoverRightPreview");
+  const hoverLeft = document.querySelector("#hoverLeftPreview");
+  if (hoverFront && hoverRight && hoverLeft) {
+    hoverFront.removeAttribute("src");
+    hoverRight.removeAttribute("src");
+    hoverLeft.removeAttribute("src");
+    toggleEmptyHoverIndicator(hoverFront, "No Front Photo");
+    toggleEmptyHoverIndicator(hoverRight, "No Right Photo");
+    toggleEmptyHoverIndicator(hoverLeft, "No Left Photo");
+  }
+
+  // Clear timeline & status
+  renderMainHistoryTimeline([]);
+  if (recordStatus) {
+    const total = records.filter(r => r && (r.firstName || r.lastName || r.vVisitorsId || r.visitorNumber)).length;
+    recordStatus.textContent = total ? `${total} visitor record(s) on file` : "Ready";
+  }
+
+  // Reset inmate link banner
+  updateInmateLinkBanner("", "");
+
+  // Reset search
+  if (searchInput) searchInput.value = "";
+  hideSearchResults();
+
+  // Reset active state flags
+  isNewRecord = false;
+  isEditingRecord = false;
+  currentInmateMatch = null;
+  selectedVisitorRecord = null;
+  pendingStatusEvent = null;
+  updateRegistrationLockState();
+
+  // Buttons visibility
+  const editButton = document.querySelector("#editRecord");
+  const updateButton = document.querySelector("#updateRecord");
+  const saveButton = document.querySelector("#saveRecord");
+  const newButton = document.querySelector("#newRecord");
+  const cancelButton = document.querySelector("#cancelRecord");
+  const intelButton = document.querySelector("#openIntelModal");
+  const generatePdfButton = document.querySelector("#generatePdf");
+  const deleteButton = document.querySelector("#deleteRecord");
+
+  if (saveButton) saveButton.classList.add("hidden");
+  if (updateButton) updateButton.classList.add("hidden");
+  if (cancelEditBtn) cancelEditBtn.classList.add("hidden");
+  if (clearFormBtn) clearFormBtn.classList.remove("hidden");
+  if (newButton) newButton.classList.remove("hidden");
+  if (editButton) editButton.classList.add("hidden");
+  if (deleteButton) deleteButton.classList.add("hidden");
+  if (generatePdfButton) generatePdfButton.classList.add("hidden");
+  if (cancelButton) cancelButton.classList.add("hidden");
+  if (intelButton) intelButton.classList.add("hidden");
+
+  // Apply access mode so inputs follow permissions
+  applyAccessMode();
+
+  // Reset datagrid to empty prompt state
+  if (datagridRegisterNewBtn) datagridRegisterNewBtn.classList.add("hidden");
+  renderRegisteredVisitorsDatagrid("", "", "");
+
+  // Focus search input
+  if (searchInput) searchInput.focus();
+
+  if (!isInitialLoad) {
+    showMessage("Form cleared. Search an inmate above or click 'New Visitor' to start.", "info");
+  }
+}
+
+function cancelEdit() {
+  if (!isEditingRecord) return;
+  isEditingRecord = false;
+  renderCurrentRecord();
+  applyAccessMode();
+  showMessage("Edit cancelled. Form reverted to view mode.", "info");
+}
+
+function updateRegistrationLockState() {
+  if (datagridRegisterNewBtn) {
+    if (isNewRecord) {
+      datagridRegisterNewBtn.disabled = true;
+      datagridRegisterNewBtn.classList.add("disabled");
+      datagridRegisterNewBtn.title = "Registration in progress. Please save the record or click 'Clear Form' first.";
+    } else {
+      datagridRegisterNewBtn.disabled = false;
+      datagridRegisterNewBtn.classList.remove("disabled");
+      datagridRegisterNewBtn.removeAttribute("title");
+    }
+  }
+
+  const emptyBtn = document.querySelector("#emptyNoticeRegisterBtn");
+  if (emptyBtn) {
+    if (isNewRecord) {
+      emptyBtn.disabled = true;
+      emptyBtn.classList.add("disabled");
+      emptyBtn.title = "Registration in progress. Please save the record or click 'Clear Form' first.";
+    } else {
+      emptyBtn.disabled = false;
+      emptyBtn.classList.remove("disabled");
+      emptyBtn.removeAttribute("title");
+    }
+  }
+}
+
+function renderRegisteredVisitorsDatagrid(targetInmateId, targetInmateNo, targetInmateName) {
+  if (!registeredVisitorsTbody || !datagridInmateBadge || !datagridCountBadge) return;
+
+  const inmateIdStr = targetInmateId ? String(targetInmateId).trim() : "";
+  const inmateNoStr = targetInmateNo ? String(targetInmateNo).trim() : "";
+  const inmateNameStr = targetInmateName ? String(targetInmateName).trim() : "";
+
+  if (!inmateIdStr && !inmateNoStr) {
+    if (datagridRegisterNewBtn) datagridRegisterNewBtn.classList.add("hidden");
+    datagridInmateBadge.textContent = "No Inmate Selected";
+    datagridCountBadge.textContent = "0 Registered";
+    registeredVisitorsTbody.innerHTML = "";
+    if (datagridEmptyNotice) {
+      datagridEmptyNotice.classList.remove("hidden");
+      if (datagridEmptyText) datagridEmptyText.textContent = "Search an inmate or select a record to see registered visitors.";
+    }
+    if (registeredVisitorsTable) registeredVisitorsTable.classList.add("hidden");
+    return;
+  }
+
+  // Show Register New button on datagrid header when an inmate is active
+  if (datagridRegisterNewBtn) datagridRegisterNewBtn.classList.remove("hidden");
+  updateRegistrationLockState();
+
+  // Set Inmate badge
+  const displayLabel = inmateNoStr
+    ? `Inmate #${inmateNoStr}${inmateNameStr ? " - " + inmateNameStr : ""}`
+    : (inmateNameStr || `Inmate ID: ${inmateIdStr}`);
+  datagridInmateBadge.textContent = displayLabel;
+
+  // Filter records in memory for this inmate
+  const matchedList = records.filter(r => {
+    if (!r) return false;
+    // Exclude blank placeholder records
+    if (!r.firstName && !r.lastName && !r.visitorNumber && !r.vVisitorsId) return false;
+
+    if (inmateIdStr && String(r.inmateId).trim() === inmateIdStr) return true;
+    if (inmateNoStr) {
+      if (r.linkedInmateNo && String(r.linkedInmateNo).trim() === inmateNoStr) return true;
+      if (r.inmateId && String(r.inmateId).trim() === inmateNoStr) return true;
+      if (r.comment && r.comment.includes(`#${inmateNoStr}`)) return true;
+    }
+    return false;
+  });
+
+  datagridCountBadge.textContent = `${matchedList.length} Registered`;
+
+  if (matchedList.length === 0) {
+    registeredVisitorsTbody.innerHTML = "";
+    if (registeredVisitorsTable) registeredVisitorsTable.classList.add("hidden");
+    if (datagridEmptyNotice) {
+      datagridEmptyNotice.classList.remove("hidden");
+      if (datagridEmptyText) {
+        datagridEmptyText.innerHTML = `
+          <div>No visitor demographics registered yet for <strong>${escapeHtml(displayLabel)}</strong>.</div>
+          <div class="datagrid-empty-action">
+            <button type="button" class="btn-register-new" id="emptyNoticeRegisterBtn">&#10133; Register New from Current Lists</button>
+          </div>
+        `;
+        const emptyBtn = datagridEmptyNotice.querySelector("#emptyNoticeRegisterBtn");
+        if (emptyBtn) {
+          if (isNewRecord) {
+            emptyBtn.disabled = true;
+            emptyBtn.classList.add("disabled");
+            emptyBtn.title = "Registration in progress. Please save the record or click 'Clear Form' first.";
+          }
+          emptyBtn.addEventListener("click", () => {
+            if (isNewRecord) {
+              showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before registering another visitor.", "info");
+              return;
+            }
+            if (currentInmateMatch) openAssignedVisitorsModal(currentInmateMatch);
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  if (datagridEmptyNotice) datagridEmptyNotice.classList.add("hidden");
+  if (registeredVisitorsTable) registeredVisitorsTable.classList.remove("hidden");
+
+  registeredVisitorsTbody.innerHTML = "";
+
+  matchedList.forEach(r => {
+    const globalIdx = records.indexOf(r);
+    const isSelected = globalIdx === currentIndex;
+    const tr = document.createElement("tr");
+    if (isSelected) tr.classList.add("selected-row");
+
+    const mugshot = getMainMugshot(r);
+    const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(" ").trim() || "Unnamed Visitor";
+    const visId = r.vVisitorsId ? `#${r.vVisitorsId}` : (r.visitorNumber || "—");
+
+    // Relationship & list detection
+    const isFamily = (r.comment && r.comment.toLowerCase().includes("family day"));
+    const listBadge = isFamily
+      ? `<span class="badge badge-tab-family">&#128106; Family Day</span>`
+      : `<span class="badge badge-tab-regular">Regular</span>`;
+
+    const relMatch = r.comment ? r.comment.match(/\(([A-Za-z\s]+)\)/) : null;
+    const relText = relMatch ? relMatch[1].trim() : "VISITOR";
+    const relTag = `${listBadge} <span class="badge badge-rel">${escapeHtml(relText)}</span>`;
+
+    const phoneStr = r.phone ? escapeHtml(r.phone) : "—";
+    const natIdStr = r.nationalId ? escapeHtml(r.nationalId) : "—";
+    const regDateStr = r.registrationDate ? formatMediumDate(r.registrationDate) : (r.admissionDate ? formatMediumDate(r.admissionDate) : "—");
+
+    tr.innerHTML = `
+      <td>
+        <div class="datagrid-photo-thumb">
+          ${mugshot ? `<img src="${mugshot}" alt="${escapeHtml(fullName)}">` : `&#128100;`}
+        </div>
+      </td>
+      <td>
+        <span class="datagrid-vis-badge">${escapeHtml(visId)}</span>
+      </td>
+      <td>
+        <div style="font-weight: 600; color: var(--ink, #0f172a);">${escapeHtml(fullName)}</div>
+        ${r.alias ? `<div style="font-size: 11px; color: var(--muted, #64748b);">AKA: ${escapeHtml(r.alias)}</div>` : ""}
+      </td>
+      <td>${relTag}</td>
+      <td style="font-size: 12px;">
+        <div>&#128222; ${phoneStr}</div>
+        <div style="color: var(--muted, #64748b); font-size: 11px;">&#129530; ${natIdStr}</div>
+      </td>
+      <td style="font-size: 12px; font-weight: 500;">${regDateStr}</td>
+      <td style="text-align: center;">
+        <button type="button" class="datagrid-load-btn" data-record-index="${globalIdx}">Load Record</button>
+      </td>
+    `;
+
+    const loadThisRecord = () => {
+      if (isNewRecord) {
+        showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before loading another visitor.", "info");
+        return;
+      }
+      currentIndex = globalIdx;
+      isNewRecord = false;
+      isEditingRecord = false;
+      updateRegistrationLockState();
+      renderCurrentRecord();
+      applyAccessMode();
+      registeredVisitorsTbody.querySelectorAll("tr").forEach(row => row.classList.remove("selected-row"));
+      tr.classList.add("selected-row");
+      showMessage(`Loaded record for ${fullName}.`, "info");
+    };
+
+    tr.querySelector(".datagrid-load-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      loadThisRecord();
+    });
+
+    tr.addEventListener("click", loadThisRecord);
+
+    registeredVisitorsTbody.appendChild(tr);
+  });
 }
 
 function getStatusChangeEvent(record, previousRecord) {
@@ -1095,13 +1515,15 @@ function getStatusDateLabel() {
 
 function updateStatusDateVisibility() {
   const dateFieldWrapper = document.querySelector(".status-date-field");
-  if (!fields.incarcerationIn.checked && !fields.incarcerationOut.checked) {
+  if (!dateFieldWrapper) return;
+  if (!fields.incarcerationIn?.checked && !fields.incarcerationOut?.checked) {
     dateFieldWrapper.classList.add("hidden");
     return;
   }
 
   dateFieldWrapper.classList.remove("hidden");
-  dateFieldWrapper.querySelector("span").textContent = getStatusDateLabel();
+  const span = dateFieldWrapper.querySelector("span");
+  if (span) span.textContent = getStatusDateLabel();
 }
 
 function toggleEmptyHoverIndicator(imgElement, placeholderText) {
@@ -1218,108 +1640,98 @@ function updateStatus() {
   recordStatus.textContent = total ? `Record ${displayPos} of ${total}` : "No records";
 }
 
-function handleSearch() {
-  const query = searchInput.value.trim().toLowerCase();
+async function handleSearch() {
+  if (isNewRecord) {
+    showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before searching for another inmate.", "info");
+    return;
+  }
+  const query = searchInput.value.trim();
   if (!query) {
-    showMessage("Please enter a name or ID to search.");
+    showMessage("Please enter an Inmate # or name to search.");
     hideSearchResults();
     return;
   }
 
-  // Find all matching records
-  const matches = records.map((r, index) => ({ record: r, index })).filter(({ record: r }) => {
-    const firstName = (r.firstName || "").trim().toLowerCase();
-    const middleName = (r.middleName || "").trim().toLowerCase();
-    const lastName = (r.lastName || "").trim().toLowerCase();
-    const fullName = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, " ").trim();
-    const firstLast = `${firstName} ${lastName}`.trim();
-    const id = (r.inmateId || "").trim().toLowerCase();
-    const affiliation = (r.affiliation || "").trim().toLowerCase();
+  showMessage(`Searching for inmate "${query}"...`, "info");
 
-    return (
-      id === query ||
-      firstName === query ||
-      lastName === query ||
-      fullName === query ||
-      firstLast === query ||
-      fullName.includes(query) ||
-      id.includes(query) ||
-      affiliation.includes(query)
-    );
-  });
+  try {
+    const data = await apiFetch(`/api/inmates/search?q=${encodeURIComponent(query)}`);
+    const inmates = data?.inmates || [];
 
-  if (matches.length === 0) {
-    hideSearchResults();
-    showMessage(`No visitor record matches "${searchInput.value.trim()}".`);
-  } else if (matches.length === 1) {
-    // Exactly one record: lead directly to the exact record
-    hideSearchResults();
-    currentIndex = matches[0].index;
-    isNewRecord = false;
-    isEditingRecord = false;
-    renderCurrentRecord();
-    const name = `${matches[0].record.firstName || ""} ${matches[0].record.lastName || ""}`.trim();
-    showMessage(`Showing record for "${name}".`);
-  } else {
-    // More than one record: display scrollable list so user can choose
-    showSearchResults(matches, searchInput.value.trim());
-    showMessage(`Found ${matches.length} matching records. Please scroll down to select one.`);
+    if (inmates.length === 0) {
+      hideSearchResults();
+      showMessage(`No inmate records found matching "${query}".`);
+      return;
+    }
+
+    if (inmates.length === 1) {
+      hideSearchResults();
+      const inmate = inmates[0];
+      currentInmateMatch = inmate;
+      selectedVisitorRecord = null;
+      const fullName = `${inmate.firstName || ""} ${inmate.middleName || ""} ${inmate.lastName || ""}`.replace(/\s+/g, " ").trim();
+      renderRegisteredVisitorsDatagrid(inmate.inmateId, inmate.inmateNo, fullName);
+      if (datagridRegisterNewBtn) datagridRegisterNewBtn.classList.remove("hidden");
+      showMessage(`Found Inmate #${inmate.inmateNo} (${fullName}). Registered visitors are displayed below. Click "Register New" to pick from current visitor lists.`, "info");
+    } else {
+      // Multiple inmates found: show matching inmates dropdown
+      showInmateSearchResults(inmates, query);
+      showMessage(`Found ${inmates.length} matching inmates. Please select one to view registered visitors.`);
+    }
+  } catch (err) {
+    console.error("Search error:", err);
+    showMessage("Failed to search inmate records: " + (err.message || "Server error"), "error");
   }
 }
 
-function showSearchResults(matches, queryStr) {
+function showInmateSearchResults(inmates, queryStr) {
   const dropdown = document.querySelector("#searchResultsDropdown");
   const list = document.querySelector("#searchResultsList");
   const countSpan = document.querySelector("#searchResultsCount");
   if (!dropdown || !list) return;
 
-  countSpan.textContent = `${matches.length} records matching "${queryStr}":`;
+  countSpan.textContent = `${inmates.length} inmates matching "${queryStr}":`;
   list.innerHTML = "";
 
-  matches.forEach(({ record: r, index }) => {
+  inmates.forEach(inmate => {
     const item = document.createElement("div");
     item.className = "search-result-item";
     item.setAttribute("role", "option");
     item.tabIndex = 0;
 
-    const fullName = `${r.firstName || ""} ${r.middleName || ""} ${r.lastName || ""}`.replace(/\s+/g, " ").trim() || "Unnamed Record";
-    const dobText = r.dob ? `DOB: ${r.dob}` : "";
-    const ageText = r.age ? `Age: ${r.age}` : "";
-    const idText = r.inmateId ? `ID: ${r.inmateId}` : "";
-    const regDateText = r.statusDate ? `Reg: ${r.statusDate}` : "";
-    const addressText = r.address ? r.address : "";
-
-    const metaParts = [dobText, ageText, idText, regDateText].filter(Boolean).join(" • ");
-
-    const hasPhoto = Boolean(r.frontFace);
-    const photoHtml = hasPhoto
-      ? `<img class="search-result-thumb" src="${r.frontFace}" alt="${escapeHtml(fullName)}">`
-      : `<div class="search-result-thumb-placeholder">&#128100;</div>`;
+    const fullName = `${inmate.firstName || ""} ${inmate.middleName || ""} ${inmate.lastName || ""}`.replace(/\s+/g, " ").trim() || "Unnamed Inmate";
+    const visitorCountText = `${inmate.visitors.length} visitor(s) on file`;
+    const inmateNoBadge = `Inmate #${inmate.inmateNo}`;
+    const statusText = inmate.custodyStatus ? `Status: ${inmate.custodyStatus}` : "";
+    const metaParts = [inmateNoBadge, visitorCountText, statusText].filter(Boolean).join(" • ");
 
     item.innerHTML = `
-      ${photoHtml}
+      <div class="search-result-thumb-placeholder">&#128100;</div>
       <div class="search-result-info">
         <div class="search-result-name">${escapeHtml(fullName)}</div>
-        ${metaParts ? `<div class="search-result-meta">${escapeHtml(metaParts)}</div>` : ""}
-        ${addressText ? `<div class="search-result-sub">${escapeHtml(addressText)}</div>` : ""}
+        <div class="search-result-meta">${escapeHtml(metaParts)}</div>
       </div>
       <div class="search-result-arrow">&#10132;</div>
     `;
 
-    const selectRecord = () => {
-      currentIndex = index;
-      isNewRecord = false;
-      isEditingRecord = false;
-      renderCurrentRecord();
+    const selectThisInmate = () => {
+      if (isNewRecord) {
+        showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before selecting another inmate.", "info");
+        return;
+      }
       hideSearchResults();
-      showMessage(`Loaded record for "${fullName}".`);
+      currentInmateMatch = inmate;
+      selectedVisitorRecord = null;
+      renderRegisteredVisitorsDatagrid(inmate.inmateId, inmate.inmateNo, fullName);
+      if (datagridRegisterNewBtn) datagridRegisterNewBtn.classList.remove("hidden");
+      showMessage(`Selected Inmate #${inmate.inmateNo} (${fullName}). Registered visitors are displayed below. Click "Register New" to pick from current visitor lists.`, "info");
     };
 
-    item.addEventListener("click", selectRecord);
-    item.addEventListener("keydown", (e) => {
+    item.addEventListener("click", selectThisInmate);
+    item.addEventListener("keydown", e => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        selectRecord();
+        selectThisInmate();
       }
     });
 
@@ -1334,6 +1746,429 @@ function hideSearchResults() {
   if (dropdown) dropdown.classList.add("hidden");
 }
 
+function updateTabUI() {
+  if (avTabRegular) {
+    const isReg = currentVisitorTab === "regular";
+    avTabRegular.classList.toggle("active", isReg);
+    avTabRegular.setAttribute("aria-selected", isReg ? "true" : "false");
+  }
+  if (avTabFamily) {
+    const isFam = currentVisitorTab === "family";
+    avTabFamily.classList.toggle("active", isFam);
+    avTabFamily.setAttribute("aria-selected", isFam ? "true" : "false");
+  }
+}
+
+function renderActiveTabVisitors() {
+  if (!currentInmateMatch) return;
+  const list = currentVisitorTab === "family"
+    ? (currentInmateMatch.familyVisitors || (currentInmateMatch.visitors ? currentInmateMatch.visitors.filter(v => v.listType === "family") : []))
+    : (currentInmateMatch.regularVisitors || (currentInmateMatch.visitors ? currentInmateMatch.visitors.filter(v => v.listType !== "family") : []));
+
+  renderAssignedVisitorsList(list, currentVisitorTab);
+}
+
+function openAssignedVisitorsModal(inmate) {
+  if (!inmate) return;
+
+  if (isNewRecord) {
+    showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' before opening visitor lists.", "info");
+    return;
+  }
+
+  currentInmateMatch = inmate;
+  selectedVisitorRecord = null;
+  hideSearchResults();
+
+  const fullName = `${inmate.firstName || ""} ${inmate.middleName || ""} ${inmate.lastName || ""}`.replace(/\s+/g, " ").trim();
+  if (avInmateNo) avInmateNo.textContent = inmate.inmateNo;
+  if (avInmateName) avInmateName.textContent = fullName;
+  if (avInmateStatus) {
+    avInmateStatus.textContent = inmate.custodyStatus || "ACTIVE";
+    avInmateStatus.className = `av-status-badge ${(inmate.custodyStatus || "active").toLowerCase()}`;
+  }
+
+  const regList = inmate.regularVisitors || (inmate.visitors ? inmate.visitors.filter(v => v.listType !== "family") : []);
+  const famList = inmate.familyVisitors || (inmate.visitors ? inmate.visitors.filter(v => v.listType === "family") : []);
+  const regCount = regList.length;
+  const famCount = famList.length;
+  const totalCount = regCount + famCount;
+
+  if (avVisitorsCount) avVisitorsCount.textContent = String(totalCount);
+  if (avCountRegular) avCountRegular.textContent = String(regCount);
+  if (avCountFamily) avCountFamily.textContent = String(famCount);
+
+  // If regular has 0 but family has records, auto switch to family tab
+  if (regCount === 0 && famCount > 0) {
+    currentVisitorTab = "family";
+  } else {
+    currentVisitorTab = "regular";
+  }
+  updateTabUI();
+
+  renderActiveTabVisitors();
+
+  // Update registered visitors datagrid below the form immediately
+  renderRegisteredVisitorsDatagrid(inmate.inmateId, inmate.inmateNo, fullName);
+
+  if (avApplyBtn) avApplyBtn.disabled = true;
+
+  if (assignedVisitorsModal) {
+    if (typeof assignedVisitorsModal.showModal === "function") {
+      assignedVisitorsModal.showModal();
+    } else {
+      assignedVisitorsModal.classList.remove("hidden");
+    }
+  }
+}
+
+function isVisitorAlreadyRegistered(visitor, inmate) {
+  if (!visitor || !inmate) return false;
+  const inmateIdStr = String(inmate.inmateId || "").trim();
+  const inmateNoStr = String(inmate.inmateNo || "").trim();
+
+  return records.some(r => {
+    if (!r) return false;
+    // Exclude completely blank placeholder records
+    if (!r.firstName && !r.lastName && !r.visitorNumber && !r.vVisitorsId) return false;
+
+    // Check if this record belongs to the inmate
+    const belongsToInmate =
+      (inmateIdStr && String(r.inmateId || "").trim() === inmateIdStr) ||
+      (inmateNoStr && (
+        String(r.linkedInmateNo || "").trim() === inmateNoStr ||
+        String(r.inmateId || "").trim() === inmateNoStr ||
+        (r.comment && r.comment.includes(`#${inmateNoStr}`))
+      ));
+
+    if (!belongsToInmate) return false;
+
+    // Direct ID match if vVisitorsId is tracked
+    if (visitor.visitorId && r.vVisitorsId && Number(r.vVisitorsId) === Number(visitor.visitorId)) {
+      return true;
+    }
+
+    // Fallback: match by first name & last name (case-insensitive)
+    const vFirst = (visitor.firstName || "").trim().toLowerCase();
+    const vLast = (visitor.lastName || "").trim().toLowerCase();
+    const rFirst = (r.firstName || "").trim().toLowerCase();
+    const rLast = (r.lastName || "").trim().toLowerCase();
+
+    return Boolean(vFirst && vLast && rFirst && rLast && vFirst === rFirst && vLast === rLast);
+  });
+}
+
+function renderAssignedVisitorsList(visitors, tabType) {
+  if (!assignedVisitorsList) return;
+  assignedVisitorsList.innerHTML = "";
+
+  const listType = tabType || currentVisitorTab || "regular";
+  const listTitle = listType === "family" ? "Family Day" : "Regular";
+
+  if (!visitors || visitors.length === 0) {
+    assignedVisitorsList.innerHTML = `
+      <div class="av-empty-notice">
+        <div class="av-empty-icon">&#128203;</div>
+        <p><strong>No ${listTitle} visitors currently on file</strong> for Inmate #${escapeHtml(currentInmateMatch?.inmateNo || "")} in <code>visitor_list_manager</code>.</p>
+        <p class="av-empty-sub">You can check the other tab or click <strong>"Register New Visitor for this Inmate"</strong> below to create a fresh demographic record.</p>
+      </div>
+    `;
+    return;
+  }
+
+  visitors.forEach((v, index) => {
+    const isAlreadyRegistered = isVisitorAlreadyRegistered(v, currentInmateMatch);
+    const card = document.createElement("div");
+    card.className = "av-visitor-card" + (isAlreadyRegistered ? " already-assigned-card" : "");
+    card.setAttribute("role", "option");
+    card.tabIndex = isAlreadyRegistered ? -1 : 0;
+    card.dataset.index = index;
+    if (isAlreadyRegistered) {
+      card.setAttribute("aria-disabled", "true");
+    }
+
+    const fullName = `${v.firstName || ""} ${v.middleName || ""} ${v.lastName || ""}`.replace(/\s+/g, " ").trim() || "Unnamed Visitor";
+    const statusClass = (v.status || "ACTIVE").toLowerCase();
+    const isBanned = v.isBanned;
+    const isFamily = v.listType === "family" || listType === "family";
+    const originBadge = isFamily
+      ? `<span class="badge badge-tab-family">&#128106; Family Day</span>`
+      : `<span class="badge badge-tab-regular">Regular</span>`;
+    const regBadge = isAlreadyRegistered
+      ? `<span class="badge badge-already-registered">&#10003; Already Registered</span>`
+      : "";
+
+    card.innerHTML = `
+      <div class="av-card-select">
+        <input type="radio" name="avVisitorRadio" class="av-radio" id="avRadio_${index}" ${isAlreadyRegistered ? "disabled" : ""}>
+      </div>
+      <div class="av-card-thumb">
+        ${v.photo ? `<img src="${v.photo}" alt="${escapeHtml(fullName)}">` : `<div class="av-thumb-placeholder">&#128100;</div>`}
+      </div>
+      <div class="av-card-main">
+        <div class="av-card-top-row">
+          <span class="av-card-name">${escapeHtml(fullName)}</span>
+          ${regBadge}
+          ${originBadge}
+          <span class="badge badge-rel">${escapeHtml(v.relationshipName || "VISITOR")}</span>
+          <span class="badge badge-status ${statusClass}">${escapeHtml(v.status || "ACTIVE")}</span>
+          ${v.isApproved ? `<span class="badge badge-approved">&#10003; Approved</span>` : `<span class="badge badge-pending">Pending Approval</span>`}
+          ${isBanned ? `<span class="badge badge-banned">&#9888; Banned: ${escapeHtml(v.bannedReason || "Restricted")}</span>` : ""}
+        </div>
+        <div class="av-card-meta">
+          ${v.dob ? `<span>DOB: <strong>${escapeHtml(v.dob)}</strong></span>` : `<span class="av-missing">No DOB</span>`}
+          ${v.phone ? `<span>Phone: <strong>${escapeHtml(v.phone)}</strong></span>` : `<span class="av-missing">No phone</span>`}
+          ${v.nationalId ? `<span>ID: <strong>${escapeHtml(v.nationalId)}</strong></span>` : `<span class="av-missing">No national ID</span>`}
+          ${v.gender ? `<span>Gender: <strong>${escapeHtml(v.gender)}</strong></span>` : ""}
+        </div>
+      </div>
+    `;
+
+    const selectThisVisitor = () => {
+      if (isAlreadyRegistered) {
+        showMessage(`"${fullName}" has already been registered for Inmate #${currentInmateMatch?.inmateNo || ""}. Use "Load Record" in the grid below.`, "info");
+        return;
+      }
+
+      selectedVisitorRecord = v;
+      const radio = card.querySelector(".av-radio");
+      if (radio) radio.checked = true;
+
+      document.querySelectorAll(".av-visitor-card").forEach(c => c.classList.remove("selected"));
+      card.classList.add("selected");
+
+      // Auto check available fields, uncheck empty fields
+      if (fieldCheckFirstName) fieldCheckFirstName.checked = Boolean(v.firstName);
+      if (fieldCheckMiddleName) fieldCheckMiddleName.checked = Boolean(v.middleName);
+      if (fieldCheckLastName) fieldCheckLastName.checked = Boolean(v.lastName);
+      if (fieldCheckDob) fieldCheckDob.checked = Boolean(v.dob);
+      if (fieldCheckPhone) fieldCheckPhone.checked = Boolean(v.phone);
+      if (fieldCheckNationalId) fieldCheckNationalId.checked = Boolean(v.nationalId);
+      if (fieldCheckPhoto) fieldCheckPhoto.checked = Boolean(v.photo);
+      if (fieldCheckNotes) fieldCheckNotes.checked = true;
+
+      if (avApplyBtn) avApplyBtn.disabled = false;
+    };
+
+    card.addEventListener("click", selectThisVisitor);
+    card.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectThisVisitor();
+      }
+    });
+
+    assignedVisitorsList.appendChild(card);
+  });
+}
+
+function applySelectedFieldsToForm() {
+  if (!currentInmateMatch) return;
+
+  if (isNewRecord) {
+    showMessage("A visitor registration is currently in progress. Please save the current record or click 'Clear Form' first.", "info");
+    return;
+  }
+
+  if (selectedVisitorRecord && isVisitorAlreadyRegistered(selectedVisitorRecord, currentInmateMatch)) {
+    const fullName = `${selectedVisitorRecord.firstName || ""} ${selectedVisitorRecord.lastName || ""}`.trim();
+    showMessage(`"${fullName}" is already registered for this inmate and cannot be added as a duplicate.`, "error");
+    return;
+  }
+
+  isNewRecord = true;
+  isEditingRecord = false;
+  updateRegistrationLockState();
+
+  const currentRegDate = new Date().toISOString().slice(0, 10);
+
+  // Clear existing form fields first
+  Object.values(fields).forEach(f => {
+    if (f.type === "radio") f.checked = false;
+    else if (f.type !== "hidden") f.value = "";
+  });
+  if (fields.age) fields.age.value = "";
+  if (visitorPhone) visitorPhone.value = "";
+  if (visitorIdInput) visitorIdInput.value = "";
+  if (visitNotes) visitNotes.value = "";
+  mainPreview.src = "";
+  mainPreviewText.textContent = "No photo";
+
+  // Set link fields
+  fields.inmateId.value = String(currentInmateMatch.inmateId || "");
+  if (vVisitorsId) vVisitorsId.value = selectedVisitorRecord ? String(selectedVisitorRecord.visitorId || "") : "";
+  if (linkedInmateNo) linkedInmateNo.value = String(currentInmateMatch.inmateNo || "");
+
+  const inmateFullName = `${currentInmateMatch.firstName || ""} ${currentInmateMatch.lastName || ""}`.trim();
+
+  // Populate checked fields from selected visitor
+  if (selectedVisitorRecord) {
+    if (fieldCheckFirstName && fieldCheckFirstName.checked) {
+      fields.firstName.value = selectedVisitorRecord.firstName || "";
+    }
+    if (fieldCheckMiddleName && fieldCheckMiddleName.checked) {
+      fields.middleName.value = selectedVisitorRecord.middleName || "";
+    }
+    if (fieldCheckLastName && fieldCheckLastName.checked) {
+      fields.lastName.value = selectedVisitorRecord.lastName || "";
+    }
+    if (fieldCheckDob && fieldCheckDob.checked && selectedVisitorRecord.dob) {
+      fields.dob.value = selectedVisitorRecord.dob;
+      fields.age.value = calculateAge(selectedVisitorRecord.dob);
+    }
+    if (fieldCheckPhone && fieldCheckPhone.checked && visitorPhone) {
+      visitorPhone.value = selectedVisitorRecord.phone || "";
+    }
+    if (fieldCheckNationalId && fieldCheckNationalId.checked && visitorIdInput) {
+      visitorIdInput.value = selectedVisitorRecord.nationalId || "";
+    }
+    if (fieldCheckPhoto && fieldCheckPhoto.checked && selectedVisitorRecord.photo) {
+      mainPreview.src = selectedVisitorRecord.photo;
+      mainPreviewText.textContent = "";
+    }
+    if (fieldCheckNotes && fieldCheckNotes.checked && visitNotes) {
+      const isFam = selectedVisitorRecord.listType === "family" || currentVisitorTab === "family";
+      const listLabel = isFam ? "Family Day Visitor" : "Visitor";
+      const rel = selectedVisitorRecord.relationshipName ? ` (${selectedVisitorRecord.relationshipName})` : "";
+      visitNotes.value = `${listLabel} for Inmate #${currentInmateMatch.inmateNo} - ${inmateFullName}${rel}`;
+    }
+  } else {
+    // New visitor for inmate without a pre-existing visitor record
+    if (visitNotes) {
+      const isFam = currentVisitorTab === "family";
+      const listLabel = isFam ? "Family Day Visitor" : "Visitor";
+      visitNotes.value = `${listLabel} for Inmate #${currentInmateMatch.inmateNo} - ${inmateFullName}`;
+    }
+  }
+
+  // Update Inmate Link Banner
+  updateInmateLinkBanner(currentInmateMatch.inmateNo, inmateFullName);
+  renderRegisteredVisitorsDatagrid(currentInmateMatch.inmateId, currentInmateMatch.inmateNo, inmateFullName);
+
+  // Update Visitor ID & Reg Date displays
+  const visIdDisplay = document.querySelector("#visitorIdDisplay");
+  if (visIdDisplay) visIdDisplay.textContent = selectedVisitorRecord?.visitorId ? `#${selectedVisitorRecord.visitorId}` : "—";
+  const regDateElem = document.querySelector("#registrationDate");
+  if (regDateElem) regDateElem.value = formatMediumDate(currentRegDate) || currentRegDate;
+
+  // Unlock all form fields for manual entry
+  Object.values(fields).forEach(f => { f.disabled = false; });
+  if (fields.age) fields.age.disabled = true;
+  if (visitorPhone) visitorPhone.disabled = false;
+  if (visitorIdInput) visitorIdInput.disabled = false;
+  if (visitNotes) visitNotes.disabled = false;
+  document.querySelectorAll('input[type="file"]').forEach(i => { i.disabled = false; });
+
+  // Update buttons state
+  const saveButton = document.querySelector("#saveRecord");
+  const newButton = document.querySelector("#newRecord");
+  const updateButton = document.querySelector("#updateRecord");
+  const editButton = document.querySelector("#editRecord");
+  const deleteButton = document.querySelector("#deleteRecord");
+  if (saveButton) saveButton.classList.remove("hidden");
+  if (newButton) newButton.classList.add("hidden");
+  if (updateButton) updateButton.classList.add("hidden");
+  if (editButton) editButton.classList.add("hidden");
+  if (deleteButton) deleteButton.classList.add("hidden");
+  if (clearFormBtn) clearFormBtn.classList.remove("hidden");
+  if (cancelEditBtn) cancelEditBtn.classList.add("hidden");
+
+  // Close modal
+  if (assignedVisitorsModal) {
+    if (typeof assignedVisitorsModal.close === "function") assignedVisitorsModal.close();
+    else assignedVisitorsModal.classList.add("hidden");
+  }
+
+  // Focus address or first empty required field
+  if (!fields.firstName.value) fields.firstName.focus();
+  else if (!fields.lastName.value) fields.lastName.focus();
+  else fields.address.focus();
+
+  const name = selectedVisitorRecord ? `${selectedVisitorRecord.firstName} ${selectedVisitorRecord.lastName}`.trim() : "new visitor";
+  showMessage(`Demographics loaded for "${name}". Please complete remaining fields (Address, Photo, Remarks) and click Save Record.`, "success");
+}
+
+function updateInmateLinkBanner(inmateNo, inmateName) {
+  if (!inmateLinkBanner) return;
+  if (inmateNo) {
+    if (linkInmateNoDisplay) linkInmateNoDisplay.textContent = inmateNo;
+    if (linkInmateNameDisplay) linkInmateNameDisplay.textContent = inmateName || "Inmate";
+    inmateLinkBanner.classList.remove("hidden");
+  } else {
+    inmateLinkBanner.classList.add("hidden");
+  }
+}
+
+// Modal control listeners
+if (avTabRegular) {
+  avTabRegular.addEventListener("click", () => {
+    if (currentVisitorTab === "regular") return;
+    currentVisitorTab = "regular";
+    selectedVisitorRecord = null;
+    if (avApplyBtn) avApplyBtn.disabled = true;
+    updateTabUI();
+    renderActiveTabVisitors();
+  });
+}
+
+if (avTabFamily) {
+  avTabFamily.addEventListener("click", () => {
+    if (currentVisitorTab === "family") return;
+    currentVisitorTab = "family";
+    selectedVisitorRecord = null;
+    if (avApplyBtn) avApplyBtn.disabled = true;
+    updateTabUI();
+    renderActiveTabVisitors();
+  });
+}
+
+if (avSelectAllFieldsBtn) {
+  avSelectAllFieldsBtn.addEventListener("click", () => {
+    [fieldCheckFirstName, fieldCheckMiddleName, fieldCheckLastName, fieldCheckDob, fieldCheckPhone, fieldCheckNationalId, fieldCheckPhoto, fieldCheckNotes].forEach(cb => {
+      if (cb) cb.checked = true;
+    });
+  });
+}
+
+if (avDeselectAllFieldsBtn) {
+  avDeselectAllFieldsBtn.addEventListener("click", () => {
+    [fieldCheckFirstName, fieldCheckMiddleName, fieldCheckLastName, fieldCheckDob, fieldCheckPhone, fieldCheckNationalId, fieldCheckPhoto, fieldCheckNotes].forEach(cb => {
+      if (cb) cb.checked = false;
+    });
+  });
+}
+
+if (avNewVisitorForInmateBtn) {
+  avNewVisitorForInmateBtn.addEventListener("click", () => {
+    selectedVisitorRecord = null;
+    applySelectedFieldsToForm();
+  });
+}
+
+if (avApplyBtn) {
+  avApplyBtn.addEventListener("click", applySelectedFieldsToForm);
+}
+
+if (closeAssignedVisitorsModal) {
+  closeAssignedVisitorsModal.addEventListener("click", () => assignedVisitorsModal.close());
+}
+
+if (avCancelBtn) {
+  avCancelBtn.addEventListener("click", () => assignedVisitorsModal.close());
+}
+
+if (unlinkInmateBtn) {
+  unlinkInmateBtn.addEventListener("click", () => {
+    fields.inmateId.value = "";
+    if (vVisitorsId) vVisitorsId.value = "";
+    if (linkedInmateNo) linkedInmateNo.value = "";
+    currentInmateMatch = null;
+    selectedVisitorRecord = null;
+    updateInmateLinkBanner("", "");
+    showMessage("Inmate link cleared for this visitor record.", "info");
+  });
+}
+
 
 // ── DATA CHANGE HANDLERS ─────────────────────────────────────────────────────
 function validateRecord(record) {
@@ -1341,12 +2176,114 @@ function validateRecord(record) {
     showMessage("Please enter the visitor's first name and last name.");
     return false;
   }
-  // Auto-assign inmateId from visitorNumber if not set (inmateId field is hidden)
-  if (!record.inmateId && record.visitorNumber) {
-    record.inmateId = record.visitorNumber;
-    if (fields.inmateId) fields.inmateId.value = record.visitorNumber;
-  }
   return true;
+}
+
+async function silentRefreshAfterSave(savedRecord) {
+  // 1. Ensure records array is refreshed from backend
+  await loadRecordsFromBackend();
+
+  // 2. Identify target inmate context
+  const targetInmateId = (currentInmateMatch && currentInmateMatch.inmateId) ? currentInmateMatch.inmateId : (savedRecord?.inmateId || "");
+  const targetInmateNo = (currentInmateMatch && currentInmateMatch.inmateNo) ? currentInmateMatch.inmateNo : (savedRecord?.linkedInmateNo || "");
+  let targetInmateName = "";
+  if (currentInmateMatch) {
+    targetInmateName = `${currentInmateMatch.firstName || ""} ${currentInmateMatch.middleName || ""} ${currentInmateMatch.lastName || ""}`.replace(/\s+/g, " ").trim();
+  } else if (savedRecord?.personName) {
+    targetInmateName = savedRecord.personName;
+  }
+
+  // 3. Reset form fields so form is cleanly cleared for subsequent entries
+  Object.entries(fields).forEach(([key, field]) => {
+    if (field.type === "radio" || field.type === "checkbox") {
+      field.checked = false;
+    } else if (key !== "inmateId") {
+      field.value = "";
+    }
+  });
+  if (fields.inmateId) fields.inmateId.value = String(targetInmateId || "");
+  if (fields.age) fields.age.value = "";
+  if (visitorPhone) visitorPhone.value = "";
+  if (visitorIdInput) visitorIdInput.value = "";
+  if (visitNotes) visitNotes.value = "";
+  if (vVisitorsId) vVisitorsId.value = "";
+  if (linkedInmateNo) linkedInmateNo.value = String(targetInmateNo || "");
+
+  // Reset displays
+  const visIdDisplay = document.querySelector("#visitorIdDisplay");
+  if (visIdDisplay) visIdDisplay.textContent = "—";
+  const regDateElem = document.querySelector("#registrationDate");
+  if (regDateElem) regDateElem.value = "";
+
+  // Reset photo previews
+  mainPreview.src = "";
+  mainPreviewText.textContent = "No photo";
+  const photoFrame = document.querySelector(".photo-frame");
+  if (photoFrame) photoFrame.classList.add("has-no-photos");
+
+  const hoverFront = document.querySelector("#hoverFrontPreview");
+  const hoverRight = document.querySelector("#hoverRightPreview");
+  const hoverLeft = document.querySelector("#hoverLeftPreview");
+  if (hoverFront && hoverRight && hoverLeft) {
+    hoverFront.removeAttribute("src");
+    hoverRight.removeAttribute("src");
+    hoverLeft.removeAttribute("src");
+    toggleEmptyHoverIndicator(hoverFront, "No Front Photo");
+    toggleEmptyHoverIndicator(hoverRight, "No Right Photo");
+    toggleEmptyHoverIndicator(hoverLeft, "No Left Photo");
+  }
+
+  // Clear timeline
+  renderMainHistoryTimeline([]);
+
+  // 4. Preserve Inmate Link Banner if inmate is active
+  if (targetInmateNo) {
+    updateInmateLinkBanner(targetInmateNo, targetInmateName);
+  } else {
+    updateInmateLinkBanner("", "");
+  }
+
+  // 5. Release registration & editing lock
+  isNewRecord = false;
+  isEditingRecord = false;
+  selectedVisitorRecord = null;
+  pendingStatusEvent = null;
+  updateRegistrationLockState();
+
+  // 6. Reset action buttons
+  const saveButton = document.querySelector("#saveRecord");
+  const updateButton = document.querySelector("#updateRecord");
+  const newButton = document.querySelector("#newRecord");
+  const editButton = document.querySelector("#editRecord");
+  const deleteButton = document.querySelector("#deleteRecord");
+  const cancelButton = document.querySelector("#cancelRecord");
+  const intelButton = document.querySelector("#openIntelModal");
+  const generatePdfButton = document.querySelector("#generatePdf");
+  const filterBar = document.querySelector("#filterBar");
+
+  if (saveButton) saveButton.classList.add("hidden");
+  if (updateButton) updateButton.classList.add("hidden");
+  if (cancelEditBtn) cancelEditBtn.classList.add("hidden");
+  if (clearFormBtn) clearFormBtn.classList.remove("hidden");
+  if (newButton) newButton.classList.remove("hidden");
+  if (editButton) editButton.classList.add("hidden");
+  if (deleteButton) deleteButton.classList.add("hidden");
+  if (generatePdfButton) generatePdfButton.classList.add("hidden");
+  if (cancelButton) cancelButton.classList.add("hidden");
+  if (intelButton) intelButton.classList.add("hidden");
+  if (filterBar) filterBar.classList.remove("hidden");
+
+  // Re-apply access mode
+  applyAccessMode();
+
+  // 7. Update status count
+  if (recordStatus) {
+    const total = records.filter(r => r && (r.firstName || r.lastName || r.vVisitorsId || r.visitorNumber)).length;
+    recordStatus.textContent = total ? `${total} visitor record(s) on file` : "Ready";
+  }
+
+  // 8. Re-render Registered Visitors Datagrid for this inmate
+  renderRegisteredVisitorsDatagrid(targetInmateId, targetInmateNo, targetInmateName);
 }
 
 async function saveNewRecord() {
@@ -1358,19 +2295,48 @@ async function saveNewRecord() {
   const record = getFormRecord();
   if (!validateRecord(record)) return;
 
+  // Duplicate registration check: ensure this visitor has not already been registered for the inmate
+  const inmateIdVal = record.inmateId ? String(record.inmateId).trim() : "";
+  const linkedNoVal = record.linkedInmateNo ? String(record.linkedInmateNo).trim() : "";
+  if (inmateIdVal || linkedNoVal) {
+    const isDuplicateForInmate = records.some((r, idx) => {
+      if (idx === currentIndex && !isNewRecord) return false;
+      if (!r.firstName && !r.lastName && !r.visitorNumber && !r.vVisitorsId) return false;
+
+      const sameInmate =
+        (inmateIdVal && String(r.inmateId || "").trim() === inmateIdVal) ||
+        (linkedNoVal && (
+          String(r.linkedInmateNo || "").trim() === linkedNoVal ||
+          String(r.inmateId || "").trim() === linkedNoVal ||
+          (r.comment && r.comment.includes(`#${linkedNoVal}`))
+        ));
+      if (!sameInmate) return false;
+
+      if (record.vVisitorsId && r.vVisitorsId && Number(record.vVisitorsId) === Number(r.vVisitorsId)) {
+        return true;
+      }
+      const rFirst = (r.firstName || "").trim().toLowerCase();
+      const rLast = (r.lastName || "").trim().toLowerCase();
+      const recFirst = (record.firstName || "").trim().toLowerCase();
+      const recLast = (record.lastName || "").trim().toLowerCase();
+      return Boolean(rFirst && rLast && recFirst && recLast && rFirst === recFirst && rLast === recLast);
+    });
+
+    if (isDuplicateForInmate) {
+      const vName = [record.firstName, record.lastName].filter(Boolean).join(" ");
+      showMessage(`Visitor "${vName}" has already been registered for this inmate. Duplicate registration is not permitted.`, "error");
+      return;
+    }
+  }
+
   const name = [record.firstName, record.lastName].filter(Boolean).join(" ") || "this visitor";
-  const confirmed = await showSaveConfirm(name, record.visitorNumber || "");
+  const visitorIdLabel = record.vVisitorsId ? `#${record.vVisitorsId}` : "";
+  const confirmed = await showSaveConfirm(name, visitorIdLabel);
   if (!confirmed) return;
 
   applyStatusHistory(record);
 
   const isBlankSlot = records.length === 1 && !records[0].inmateId && !records[0].firstName;
-  const duplicate = records.some((item, index) => item.inmateId === record.inmateId && index !== currentIndex);
-  if (!isBlankSlot && duplicate) {
-    showMessage("That visitor ID is already in use. Please update the existing record instead.");
-    return;
-  }
-
   const currentIsBlank = !records[currentIndex]?.inmateId && !records[currentIndex]?.firstName;
 
   if (isBlankSlot || currentIsBlank) {
@@ -1382,9 +2348,13 @@ async function saveNewRecord() {
 
   isNewRecord = false;
   isEditingRecord = false;
-  await persistRecords("create_record", `${record.visitorNumber} - ${record.firstName} ${record.lastName}`);
-  renderCurrentRecord();
-  showMessage(`Visitor record for ${name} saved successfully.`, "success");
+  updateRegistrationLockState();
+  const descriptor = record.vVisitorsId
+    ? `Visitor #${record.vVisitorsId} - ${record.firstName} ${record.lastName}`
+    : `${record.firstName} ${record.lastName}`;
+  await persistRecords("create_record", descriptor);
+  await silentRefreshAfterSave(record);
+  showMessage(`Visitor record for "${name}" saved successfully. Registered visitors list updated.`, "success");
 }
 
 async function updateCurrentRecord() {
@@ -1397,23 +2367,21 @@ async function updateCurrentRecord() {
   if (!validateRecord(record)) return;
 
   const name = [record.firstName, record.lastName].filter(Boolean).join(" ") || "this visitor";
-  const confirmed = await showUpdateConfirm(name, record.visitorNumber || record.inmateId || "");
+  const visitorIdLabel = record.vVisitorsId ? `#${record.vVisitorsId}` : "";
+  const confirmed = await showUpdateConfirm(name, visitorIdLabel);
   if (!confirmed) return;
 
   applyStatusHistory(record);
 
-  const duplicate = records.some((item, index) => item.inmateId === record.inmateId && index !== currentIndex);
-  if (duplicate) {
-    showMessage("That visitor ID is already assigned to another record.");
-    return;
-  }
-
   records[currentIndex] = record;
-  await persistRecords("update_records", `${record.visitorNumber || record.inmateId} - ${record.firstName} ${record.lastName}`);
+  const descriptor = record.vVisitorsId
+    ? `Visitor #${record.vVisitorsId} - ${record.firstName} ${record.lastName}`
+    : `${record.firstName} ${record.lastName}`;
+  await persistRecords("update_records", descriptor);
   isEditingRecord = false;
   isNewRecord = false;
-  renderCurrentRecord();
-  showMessage(`Visitor record for ${name} updated successfully.`, "success");
+  await silentRefreshAfterSave(record);
+  showMessage(`Visitor record for "${name}" updated successfully. Registered visitors list updated.`, "success");
 }
 
 async function deleteRecord() {
@@ -1429,7 +2397,17 @@ async function deleteRecord() {
 
   const record = records[currentIndex];
   const name = [record.firstName, record.lastName].filter(Boolean).join(" ") || "Unknown";
-  const id = record.inmateId || "N/A";
+  const id = record.vVisitorsId ? `#${record.vVisitorsId}` : (record.inmateId || "N/A");
+
+  // Preserve active inmate context before delete
+  const targetInmateId = currentInmateMatch?.inmateId || record?.inmateId || "";
+  const targetInmateNo = currentInmateMatch?.inmateNo || record?.linkedInmateNo || "";
+  let targetInmateName = "";
+  if (currentInmateMatch) {
+    targetInmateName = `${currentInmateMatch.firstName || ""} ${currentInmateMatch.lastName || ""}`.trim();
+  } else if (record?.personName) {
+    targetInmateName = record.personName;
+  }
 
   const confirmed = await showDeleteConfirm(name, id);
   if (!confirmed) return;
@@ -1450,7 +2428,18 @@ async function deleteRecord() {
     }
 
     isNewRecord = false;
+    isEditingRecord = false;
     applyFiltersToRecords();
+
+    // Refresh datagrid for active inmate
+    if (targetInmateId || targetInmateNo) {
+      renderRegisteredVisitorsDatagrid(targetInmateId, targetInmateNo, targetInmateName);
+      updateInmateLinkBanner(targetInmateNo, targetInmateName);
+    } else {
+      renderRegisteredVisitorsDatagrid("", "", "");
+      updateInmateLinkBanner("", "");
+    }
+
     renderCurrentRecord();
     showMessage("Record deleted successfully.", "success");
   } catch (error) {
@@ -1485,15 +2474,15 @@ function showDeleteConfirm(name, id) {
   });
 }
 
-function showSaveConfirm(name, visitorNumber) {
+function showSaveConfirm(name, visitorId) {
   return new Promise(resolve => {
     const dialog = document.getElementById("saveConfirmDialog");
     const msg = document.getElementById("saveConfirmMessage");
     const confirmBtn = document.getElementById("saveConfirmBtn");
     const cancelBtn = document.getElementById("saveCancelBtn");
 
-    msg.textContent = visitorNumber
-      ? `You are about to save a new record for ${name} (Visitor ID: ${visitorNumber}).`
+    msg.textContent = visitorId
+      ? `You are about to save a new record for ${name} (Visitor ID: ${visitorId}).`
       : `You are about to save a new record for ${name}.`;
 
     const cleanup = () => {
@@ -1549,13 +2538,20 @@ async function createNewRecord() {
     return;
   }
 
+  if (isNewRecord) {
+    showMessage("A visitor registration is already in progress. Please save the current record or click 'Clear Form' first.", "info");
+    return;
+  }
+
   const newRec = emptyRecord();
-  newRec.visitorNumber = generateVisitorNumber();
+  newRec.visitorNumber = "";
+  newRec.vVisitorsId = null;
   newRec.registrationDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   records.push(newRec);
   currentIndex = records.length - 1;
   isNewRecord = true;
   isEditingRecord = false;
+  updateRegistrationLockState();
   renderCurrentRecord();
   showMessage("A new blank record is ready. Fill in the details and save.");
   fields.firstName.focus();

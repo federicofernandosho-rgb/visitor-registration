@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS inmates (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  inmate_id VARCHAR(7) NOT NULL UNIQUE,
+  inmate_id VARCHAR(7) NOT NULL COMMENT 'link to `visitor_list_manager`.v_inmates.inmate_id',
+  visitor_number VARCHAR(50) DEFAULT NULL,
+  registration_date DATE DEFAULT NULL,
+  v_visitors_id INT DEFAULT NULL COMMENT 'id from `visitor_list_manager`.v_visitors.visitors_id',
   first_name VARCHAR(100) NOT NULL,
   middle_name VARCHAR(100),
   last_name VARCHAR(100) NOT NULL,
@@ -22,6 +25,8 @@ CREATE TABLE IF NOT EXISTS inmates (
   dob DATE,
   age INT,
   address VARCHAR(255),
+  phone VARCHAR(50) DEFAULT NULL,
+  national_id VARCHAR(100) DEFAULT NULL,
   comment TEXT,
   affiliation VARCHAR(255),
   gang_affiliation VARCHAR(150),
@@ -31,7 +36,9 @@ CREATE TABLE IF NOT EXISTS inmates (
   discharge_date DATE NULL,
   status_history TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_inmate_id (inmate_id),
+  INDEX idx_v_visitors_id (v_visitors_id)
 );
 
 CREATE TABLE IF NOT EXISTS inmate_photos (

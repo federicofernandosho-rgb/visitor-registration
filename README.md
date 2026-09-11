@@ -1,6 +1,6 @@
-# Inmate Profile
+# Visitor Registration
 
-Server-ready inmate profile application with backend authentication, role-based access, and server-side record storage. It can use MySQL when database settings are configured, or JSON files for simple local testing.
+Server-ready visitor registration application with backend authentication, role-based access, and server-side record storage. It can use MySQL when database settings are configured, or JSON files for simple local testing.
 
 ## Run Locally
 
@@ -17,9 +17,9 @@ http://localhost:3001
 
 The first time the app runs, it asks you to create the first Super Admin user. Users can have one of these roles:
 
-- Super Admin: can create users, change roles, and edit inmate records/photos.
-- Data Entry: can create, edit, save records, and upload photos.
-- Read Only: can view records, open the photo modal, navigate records, and generate reports.
+- Super Admin: can create users, change roles, and edit records/photos.
+- Data Entry: can create, edit, and save records, and upload photos.
+- Read Only: can view records, open photo modals, navigate records, and generate reports.
 
 ## MySQL Setup
 
@@ -48,13 +48,13 @@ Username: admin
 Password: admin123
 ```
 
-2. Create a MySQL user, or use an existing one that has access to `inmate_profile_db`.
+2. Create a MySQL user, or use an existing one that has access to `visitor_registration_db`.
 
 Example:
 
 ```sql
-CREATE USER 'inmate_profile_user'@'%' IDENTIFIED BY 'change_this_password';
-GRANT SELECT, INSERT, UPDATE, DELETE ON inmate_profile_db.* TO 'inmate_profile_user'@'%';
+CREATE USER 'visitor_registration_user'@'%' IDENTIFIED BY 'change_this_password';
+GRANT SELECT, INSERT, UPDATE, DELETE ON visitor_registration_db.* TO 'visitor_registration_user'@'%';
 FLUSH PRIVILEGES;
 ```
 
@@ -63,9 +63,9 @@ FLUSH PRIVILEGES;
 ```text
 DB_HOST=your_mysql_server_ip
 DB_PORT=3306
-DB_USER=inmate_profile_user
+DB_USER=visitor_registration_user
 DB_PASSWORD=your_password
-DB_NAME=inmate_profile_db
+DB_NAME=visitor_registration_db
 ```
 
 4. Start the app:
@@ -109,7 +109,7 @@ HOST=0.0.0.0
 For Windows Server service installation, use:
 
 ```powershell
-.\deployment\Install-InmateProfileService.ps1
+.\deployment\Install-VisitorRegistrationService.ps1
 ```
 
 Full instructions are in:
@@ -126,13 +126,13 @@ tools\nssm\nssm.exe
 
 ## Keep Changes & Deploy (recommended)
 
-To preserve your UI changes and deploy the app to your server, follow these steps on your development machine and on the target server.
+To preserve your changes and deploy the app to your server, follow these steps on your development machine and on the target server.
 
-1. Commit your local changes locally (already done if you followed earlier steps):
+1. Commit your local changes locally:
 
 ```bash
 git add -A
-git commit -m "Apply UI and modal improvements"
+git commit -m "Configure Visitor Registration deployment"
 ```
 
 2. Push to your remote (replace `origin` and `main` if different):
@@ -144,8 +144,8 @@ git push origin main
 3. On the production server, clone or pull the repo and install dependencies:
 
 ```bash
-git clone <your-repo-url> /opt/inmate-profile || (cd /opt/inmate-profile && git pull)
-cd /opt/inmate-profile
+git clone <your-repo-url> /opt/visitor-registration || (cd /opt/visitor-registration && git pull)
+cd /opt/visitor-registration
 npm install --production
 ```
 
@@ -155,20 +155,20 @@ Using pm2 (recommended):
 
 ```bash
 npm install -g pm2
-pm2 start server.js --name inmate-profile --env production -- PORT=3001
+pm2 start server.js --name visitor-registration --env production -- PORT=3001
 pm2 save
 pm2 startup
 ```
 
-Using systemd (example service unit): create `/etc/systemd/system/inmate-profile.service` with:
+Using systemd (example service unit): create `/etc/systemd/system/visitor-registration.service` with:
 
 ```ini
 [Unit]
-Description=Inmate Profile Service
+Description=Visitor Registration Service
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/inmate-profile
+WorkingDirectory=/opt/visitor-registration
 ExecStart=/usr/bin/node server.js
 Restart=always
 Environment=PORT=3001
@@ -183,9 +183,9 @@ Then enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable inmate-profile
-sudo systemctl start inmate-profile
-sudo journalctl -u inmate-profile -f
+sudo systemctl enable visitor-registration
+sudo systemctl start visitor-registration
+sudo journalctl -u visitor-registration -f
 ```
 
 5. Preserve runtime data: back up the `data/` folder regularly (it contains `users.json`, `records.json`, `secret.txt`).
@@ -193,8 +193,8 @@ sudo journalctl -u inmate-profile -f
 6. Rollbacks and updates: pull latest changes on the server and restart pm2 or systemd:
 
 ```bash
-cd /opt/inmate-profile && git pull && npm install
-pm2 restart inmate-profile   # or: sudo systemctl restart inmate-profile
+cd /opt/visitor-registration && git pull && npm install
+pm2 restart visitor-registration   # or: sudo systemctl restart visitor-registration
 ```
 
-If you want, I can also create a small `deploy.sh` script to automate steps 3–6. Tell me if you'd like that.
+The included `deploy.sh` script automates these steps.
