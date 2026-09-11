@@ -4345,13 +4345,10 @@ body.dark-mode .av-modal-footer {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 #avNewVisitorForInmateBtn {
-  font-size: 13px;
-  border-color: #cbd5e1;
-}
-body.dark-mode #avNewVisitorForInmateBtn {
-  border-color: #475569;
+  display: none !important;
 }
 #avApplyBtn {
   font-weight: 600;
