@@ -30,6 +30,14 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml"
 };
 
+process.on("uncaughtException", error => {
+  console.error("Uncaught Exception:", error);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
 start().catch(error => {
   console.error(error);
   process.exit(1);
@@ -399,8 +407,16 @@ async function initializeDatabase() {
     waitForConnections: true,
     connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
     maxIdle: 10,
-    idleTimeout: 60000
+    idleTimeout: 60000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
   });
+
+  if (dbPool.pool) {
+    dbPool.pool.on("error", err => {
+      console.error("Database pool error:", err.message);
+    });
+  }
 
   await dbPool.query("SELECT 1");
   console.log(`Using MySQL database ${process.env.DB_NAME} at ${process.env.DB_HOST}`);
