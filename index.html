@@ -718,7 +718,7 @@
             <span id="avInmateBadge" class="av-inmate-badge">Inmate #<span id="avInmateNo">—</span> &mdash; <span id="avInmateName">—</span></span>
             <span id="avInmateStatus" class="av-status-badge">ACTIVE</span>
           </div>
-          <p id="avInmateSubtext">Select a visitor record and pick which fields to auto-fill into the Visitor Registration form.</p>
+          <p id="avInmateSubtext">Select a visitor record to auto-fill into the Visitor Registration form.</p>
         </div>
         <button type="button" class="icon-button av-close-btn" id="closeAssignedVisitorsModal" aria-label="Close current visitor lists">&times;</button>
       </header>
@@ -726,7 +726,7 @@
       <section class="modal-body av-modal-body">
         <!-- Visitor Records List -->
         <div class="av-section-label">
-          <span>1. Select Visitor Record (<span id="avVisitorsCount">0</span> on file):</span>
+          <span>Select Visitor Record (<span id="avVisitorsCount">0</span> on file):</span>
         </div>
 
         <!-- Tabs: Regular Visitors vs Family Day Visitors -->
@@ -745,8 +745,8 @@
           <!-- Dynamically populated visitor cards -->
         </div>
 
-        <!-- Field Selection Matrix with Checkboxes -->
-        <div class="av-field-section" id="avFieldSelectionSection">
+        <!-- Field Selection Matrix with Checkboxes (Hidden per configuration) -->
+        <div class="av-field-section hidden" id="avFieldSelectionSection" style="display: none;">
           <div class="av-field-section-header">
             <span class="av-section-label">2. Select Fields to Transfer into Form:</span>
             <div class="av-field-quick-actions">
@@ -769,19 +769,19 @@
               <span>Last Name</span>
             </label>
             <label class="av-checkbox-label">
-              <input type="checkbox" id="fieldCheckDob" checked>
+              <input type="checkbox" id="fieldCheckDob">
               <span>Date of Birth / Age</span>
             </label>
             <label class="av-checkbox-label">
-              <input type="checkbox" id="fieldCheckPhone" checked>
+              <input type="checkbox" id="fieldCheckPhone">
               <span>Phone Number</span>
             </label>
             <label class="av-checkbox-label">
-              <input type="checkbox" id="fieldCheckNationalId" checked>
+              <input type="checkbox" id="fieldCheckNationalId">
               <span>National ID / Passport</span>
             </label>
             <label class="av-checkbox-label">
-              <input type="checkbox" id="fieldCheckPhoto" checked>
+              <input type="checkbox" id="fieldCheckPhoto">
               <span>Visitor Photo</span>
             </label>
             <label class="av-checkbox-label">
@@ -800,13 +800,13 @@
         </div>
         <div class="av-footer-right">
           <button type="button" class="secondary" id="avCancelBtn">Cancel</button>
-          <button type="button" class="primary" id="avApplyBtn" disabled>Apply Selected Fields to Form</button>
+          <button type="button" class="primary" id="avApplyBtn" disabled>Select</button>
         </div>
       </footer>
     </div>
   </dialog>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 
 </html>

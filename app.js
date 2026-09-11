@@ -1858,6 +1858,14 @@ function isVisitorAlreadyRegistered(visitor, inmate) {
   });
 }
 
+function formatGender(gender) {
+  if (!gender) return "";
+  const g = String(gender).trim().toUpperCase();
+  if (g === "M") return "Male";
+  if (g === "F") return "Female";
+  return gender;
+}
+
 function renderAssignedVisitorsList(visitors, tabType) {
   if (!assignedVisitorsList) return;
   assignedVisitorsList.innerHTML = "";
@@ -1888,7 +1896,6 @@ function renderAssignedVisitorsList(visitors, tabType) {
     }
 
     const fullName = `${v.firstName || ""} ${v.middleName || ""} ${v.lastName || ""}`.replace(/\s+/g, " ").trim() || "Unnamed Visitor";
-    const statusClass = (v.status || "ACTIVE").toLowerCase();
     const isBanned = v.isBanned;
     const isFamily = v.listType === "family" || listType === "family";
     const originBadge = isFamily
@@ -1911,15 +1918,13 @@ function renderAssignedVisitorsList(visitors, tabType) {
           ${regBadge}
           ${originBadge}
           <span class="badge badge-rel">${escapeHtml(v.relationshipName || "VISITOR")}</span>
-          <span class="badge badge-status ${statusClass}">${escapeHtml(v.status || "ACTIVE")}</span>
-          ${v.isApproved ? `<span class="badge badge-approved">&#10003; Approved</span>` : `<span class="badge badge-pending">Pending Approval</span>`}
           ${isBanned ? `<span class="badge badge-banned">&#9888; Banned: ${escapeHtml(v.bannedReason || "Restricted")}</span>` : ""}
         </div>
         <div class="av-card-meta">
           ${v.dob ? `<span>DOB: <strong>${escapeHtml(v.dob)}</strong></span>` : `<span class="av-missing">No DOB</span>`}
           ${v.phone ? `<span>Phone: <strong>${escapeHtml(v.phone)}</strong></span>` : `<span class="av-missing">No phone</span>`}
           ${v.nationalId ? `<span>ID: <strong>${escapeHtml(v.nationalId)}</strong></span>` : `<span class="av-missing">No national ID</span>`}
-          ${v.gender ? `<span>Gender: <strong>${escapeHtml(v.gender)}</strong></span>` : ""}
+          ${v.gender ? `<span>Gender: <strong>${escapeHtml(formatGender(v.gender))}</strong></span>` : ""}
         </div>
       </div>
     `;
@@ -1937,15 +1942,15 @@ function renderAssignedVisitorsList(visitors, tabType) {
       document.querySelectorAll(".av-visitor-card").forEach(c => c.classList.remove("selected"));
       card.classList.add("selected");
 
-      // Auto check available fields, uncheck empty fields
-      if (fieldCheckFirstName) fieldCheckFirstName.checked = Boolean(v.firstName);
-      if (fieldCheckMiddleName) fieldCheckMiddleName.checked = Boolean(v.middleName);
-      if (fieldCheckLastName) fieldCheckLastName.checked = Boolean(v.lastName);
-      if (fieldCheckDob) fieldCheckDob.checked = Boolean(v.dob);
-      if (fieldCheckPhone) fieldCheckPhone.checked = Boolean(v.phone);
-      if (fieldCheckNationalId) fieldCheckNationalId.checked = Boolean(v.nationalId);
-      if (fieldCheckPhoto) fieldCheckPhoto.checked = Boolean(v.photo);
+      // Auto check name fields and relationship notes; exclude other fields
+      if (fieldCheckFirstName) fieldCheckFirstName.checked = true;
+      if (fieldCheckMiddleName) fieldCheckMiddleName.checked = true;
+      if (fieldCheckLastName) fieldCheckLastName.checked = true;
       if (fieldCheckNotes) fieldCheckNotes.checked = true;
+      if (fieldCheckDob) fieldCheckDob.checked = false;
+      if (fieldCheckPhone) fieldCheckPhone.checked = false;
+      if (fieldCheckNationalId) fieldCheckNationalId.checked = false;
+      if (fieldCheckPhoto) fieldCheckPhoto.checked = false;
 
       if (avApplyBtn) avApplyBtn.disabled = false;
     };
